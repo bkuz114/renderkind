@@ -1,0 +1,3 @@
+[submodule "libs/themePicker"]
+	path = libs/themePicker
+	url = https://github.com/bkuz114/themePicker.git
