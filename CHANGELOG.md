@@ -1,0 +1,54 @@
+# Changelog
+
+All notable changes to `md2html` will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- (Placeholder for future changes)
+
+## [0.1.0] - 2026-04-12
+
+### Added
+- Initial release of `md2html` as standalone tool
+- YAML frontmatter parsing with `title` and `description` fields
+- Build-time table of contents generation (h1-h4 headings)
+- Template rendering with `{{ placeholder }}` syntax
+- Responsive default template with:
+  - Fixed header with TOC toggle
+  - Collapsible TOC panel (slide from left on desktop, from top on mobile)
+  - Dark mode support (via external `darkMode.js` or custom implementation)
+  - Print stylesheet
+- CLI flags:
+  - `--output` - Specify custom output path (defaults to `./index.html`)
+  - `--force` – Overwrite existing output file
+  - `--strict` – Require `title` and `description` in frontmatter
+  - `--template` – Specify custom HTML template (defaults to `templates/default_template.html`)
+- Markdown extensions:
+  - Tables (`tables`)
+  - Fenced code blocks (`fenced_code`)
+  - Smart quotes and dashes (`smarty`)
+  - Markdown inside HTML blocks (`md_in_html`)
+- Graceful fallbacks:
+  - Title from first `# h1` if no frontmatter `title` (with deprecation warning)
+  - Empty description if no frontmatter `description` (with info message)
+- Submodule support for `themePicker` (theme rendering library)
+- Submodule support for `template-utils` (template rendering library)
+- Example markdown files in `examples/` directory
+- Documentation:
+  - README with installation, usage, and customization guide
+  - CHANGELOG (this file)
+  - MIT License
+
+### Deprecated
+- Title fallback to first `# h1` – will be removed in v2.0. Use frontmatter `title:` instead.
+
+### Known Issues
+- None for this release
+
+---
+
+[0.1.0]: https://github.com/bkuz114/md2html/releases/tag/v0.1.0
