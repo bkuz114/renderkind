@@ -1,3 +1,6 @@
 [submodule "libs/themePicker"]
 	path = libs/themePicker
 	url = https://github.com/bkuz114/themePicker.git
+[submodule "libs/template_utils"]
+	path = libs/template_utils
+	url = https://github.com/bkuz114/template_utils.git
