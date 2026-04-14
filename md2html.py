@@ -26,6 +26,7 @@ import sys
 import argparse
 import re
 import json
+import shutil
 from pathlib import Path
 from typing import List, Dict, Tuple
 import yaml
@@ -410,12 +411,147 @@ def template_html(
     return full_content
 
 
+def copy_libs_to_output(
+    libs_path: Path, assets_dest_dir: Path, force: bool = False
+) -> None:
+    """
+    TEMPORARY: Copy only needed files from libs submodules to assets directory.
+
+    TODO: Remove this once submodules are vendored into assets/ for pip distribution.
+
+    This function copies only the runtime-necessary files from submodules
+    (not tests, demos, etc.) into the appropriate locations within the
+    assets directory that was copied to output.
+
+    Args:
+        libs_path: Path to the libs directory containing submodules.
+        assets_dest_dir: Path to the assets directory within output (returned by
+                         copy_assets_to_output).
+        force: If True, overwrite existing files; if False, raise error.
+
+    Currently copies:
+        - themePicker/themePicker.js -> assets_dest_dir / "js/themePicker.js"
+
+    Raises:
+        FileNotFoundError: If source files don't exist.
+        FileExistsError: If destination exists and force is False.
+    """
+    # Define source paths (adjust based on your actual submodule structure)
+    source_js = libs_path / "themePicker/themePicker.js"
+
+    # Define destination paths (within assets directory)
+    dest_js = assets_dest_dir / "js/themePicker.js"
+
+    # Create parent directories if needed
+    dest_js.parent.mkdir(parents=True, exist_ok=True)
+
+    # Copy with force handling
+    def copy_file(src: Path, dst: Path, name: str) -> None:
+        if not src.exists():
+            raise FileNotFoundError(f"{name} not found: {src}")
+
+        if dst.exists() and not force:
+            raise FileExistsError(
+                f"{name} destination already exists: {dst}\n"
+                f"Use force=True to overwrite."
+            )
+
+        shutil.copy2(src, dst)  # copy2 preserves metadata
+        print(f"   Copied {name}: {dst.name}")
+
+    copy_file(source_js, dest_js, "themePicker.js")
+
+
+def copy_assets_to_output(
+    assets_path: Path, output_path: Path, force: bool = False
+) -> Path:
+    """
+    Copy the assets directory to the output file's parent directory.
+
+    This function copies the entire assets directory (including all contents)
+    to the same directory where the output file will live. This ensures that
+    relative asset references (e.g., `assets/css/styles.css`) resolve correctly
+    when the output file is opened in a browser.
+
+    Args:
+        assets_path: Path to the source assets directory.
+        output_path: Path to the output directory. assets will be copied here.
+        force: If True, overwrite existing assets directory; if False, raise
+               error if destination already exists.
+
+    Returns:
+        Path to the copied assets directory within the output directory.
+
+    Raises:
+        FileNotFoundError: If assets_path or output_path do not exist.
+        NotADirectoryError: If assets_path or output_path is not a directory.
+        FileExistsError: If assets destination exists and force is False.
+        OSError: For other file operation errors (permissions, disk full, etc.).
+
+    Examples:
+        >>> from pathlib import Path
+        >>> assets = Path("/project/assets")
+        >>> output = Path("/project/output")
+        >>> copy_assets_to_output(assets, output, force=True)
+        # Copies /project/assets to /project/output/assets
+
+    Notes:
+        - Uses shutil.copytree for recursive directory copy.
+        - The destination directory name matches the source directory name.
+        - Existing symlinks are preserved (follow_symlinks=False).
+        - If force=True, any existing destination is removed before copying.
+    """
+    # Validate source
+    if not assets_path.exists():
+        raise FileNotFoundError(f"Assets path does not exist: {assets_path}")
+
+    if not assets_path.is_dir():
+        raise NotADirectoryError(f"Assets path is not a directory: {assets_path}")
+
+    if not output_path.exists():
+        raise FileNotFoundError(f"Output path does not exist: {output_path}")
+
+    if not output_path.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {output_path}")
+
+    # Determine destination: output directory + assets directory name
+    assets_dest_dir = output_path / assets_path.name
+
+    # Handle existing destination
+    if assets_dest_dir.exists():
+        if force:
+            shutil.rmtree(assets_dest_dir)  # Remove entire existing directory
+        else:
+            raise FileExistsError(
+                f"Destination already exists: {assets_dest_dir}\n"
+                f"Use force=True to overwrite."
+            )
+
+    # Copy the directory
+    try:
+        shutil.copytree(
+            assets_path,
+            assets_dest_dir,
+            symlinks=False,  # Copy symlinks as links (not dereferenced)
+            ignore_dangling_symlinks=True,
+            dirs_exist_ok=False,  # Should not happen due to check above
+        )
+    except OSError as e:
+        raise OSError(
+            f"Failed to copy assets from {assets_path} to {assets_dest_dir}: {e}"
+        )
+
+    # return final assets path within output dir
+    return assets_dest_dir
+
+
 def write_html_file(content: str, output: Path, force: bool) -> None:
     """
     Write the final HTML file, checking for existing file and --force flag.
 
     Args:
         content: Final HTML string.
+        output: Path to write html file to
         force: Whether to overwrite existing file.
 
     Raises:
@@ -427,6 +563,41 @@ def write_html_file(content: str, output: Path, force: bool) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def create_output(
+    content: str, output_dir: Path, assets_dir: Path, libs_dir: Path, force: bool
+) -> Path:
+    """
+    Writes final HTML file to dedicated output dir and copies assets
+    to that directory to resolve <script> and <link> paths.
+
+    Args:
+        content: Final HTML string.
+        output_dir: output directory to write index.html in and copy assets into
+        assets_dir: path to assets directory
+        libs_dir: path to libs directory (TEMPORARY - will be removed)
+        force: Whether to overwrite existing file.
+
+    Returns:
+        Path to index.html file that is written, if successful
+    """
+
+    # path to final index.html
+    index_path = output_dir / "index.html"
+
+    # create index.html in output dir
+    write_html_file(content, index_path, force)
+    # copy assets directory to output dir so js and css paths will resolve in browser
+    final_assets_dir = copy_assets_to_output(assets_dir, output_dir, force)
+    # ============================================================================
+    # TEMPORARY SECTION - Remove when submodules are vendored
+    # See: pip distribution migration plan
+    # ============================================================================
+    copy_libs_to_output(libs_dir, final_assets_dir, force)
+
+    # return path to index.html for final logging
+    return index_path
 
 
 # ============================================================================
@@ -455,8 +626,22 @@ def main():
         "--output",
         type=Path,
         required=False,
-        default="index.html",
-        help=f"Path to output file (e.g., index.html). {path_help}",
+        default="dist",
+        help=f"Path to output dir (e.g., dist). {path_help}",
+    )
+    parser.add_argument(
+        "--assets",
+        type=Path,
+        required=False,
+        default="assets",
+        help=f"Path to assets directory (e.g., assets). {path_help}",
+    )
+    parser.add_argument(
+        "--libs",
+        type=Path,
+        required=False,
+        default="libs",
+        help="Path to libs directory containing submodules (TEMPORARY).",
     )
     parser.add_argument(
         "--template",
@@ -483,6 +668,8 @@ def main():
     input_path = args.input.resolve()
     output_path = args.output.resolve()
     template_path = args.template.resolve()
+    assets_path = args.assets.resolve()
+    libs_path = args.libs.resolve()
 
     try:
         print(f"📖 Reading markdown file: {input_path}")
@@ -505,15 +692,11 @@ def main():
         )
 
         print(f"📝 Writing HTML: {output_path}")
-        write_html_file(final_html, output_path, args.force)
+        index_path = create_output(
+            final_html, output_path, assets_path, libs_path, args.force
+        )
 
-        print(f"\n✅ Done! Generated: {output_path}")
-
-        # Issue general warning about <script> and <link> paths to avoid confusion
-        print("\n⚠️  WARNING!")
-        print(f"   HTML expects CSS/JS at: assets/css and assets/js")
-        print(f"   Relative to HTML location: {output_path.parent}")
-        print(f"   If assets are missing, copy them or adjust OUTPUT argument.\n")
+        print(f"\n✅ Done! Generated: {index_path}")
 
     except FileNotFoundError as e:
         print(f"\n❌ Error:\n{e}\n")
