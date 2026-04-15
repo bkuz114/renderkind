@@ -1,11 +1,11 @@
 ---
-title: "md2html Demo & Documentation"
-description: "A complete demonstration of md2html features including frontmatter, tables of contents, tables, code blocks, and custom HTML."
+title: "renderkind Demo & Documentation"
+description: "A complete demonstration of renderkind features including frontmatter, tables of contents, tables, code blocks, and custom HTML."
 ---
 
-# md2html Demo & Documentation
+# renderkind Demo & Documentation
 
-Welcome to the `md2html` demo. `md2html` is a markdown to HTML genereator: It generates responsive, offline webpages with easy navigation and theme selection.
+Welcome to the `renderkind` demo. `renderkind` is a markdown to HTML genereator: It generates responsive, offline webpages with easy navigation and theme selection.
 
 This file demonstrates all major features of the tool.
 
@@ -27,8 +27,8 @@ This document includes frontmatter at the top:
 
 ```yaml
 ---
-title: "md2html Demo & Documentation"
-description: "A complete demonstration of md2html features..."
+title: "renderkind Demo & Documentation"
+description: "A complete demonstration of renderkind features..."
 ---
 ```
 
@@ -124,7 +124,7 @@ Then access them in your template: `{{author}}`, `{{date}}`, etc.
 ## Using Custom Templates
 
 ```bash
-md2html.py input.md output.html --template my-template.html
+renderkind input.md --template my-template.html
 ```
 
 Your template must include the required placeholders: `{{title}}`, `{{description}}`, `{{content}}`, `{{toc}}`, `{{anchor_top}}`.

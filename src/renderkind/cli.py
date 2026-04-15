@@ -3,10 +3,10 @@
 Generate a convenient-to-navigate, customizable, static HTML page from Markdown.
 
 Usage:
-    python md2html.py INPUT OUTPUT TEMPLATE [--force] [--strict]
+    renderkind INPUT [--output] [--template] [--force] [--strict]
 
 Example:
-    python md2html.py \
+    renderkind \
             input.md.md \
             dist/index.html \
             templates/default_template.html \
@@ -33,10 +33,45 @@ import yaml
 import markdown
 from bs4 import BeautifulSoup
 
-# Add template_utils submodule to Python's module search path
-sys.path.insert(0, str(Path(__file__).parent / "libs/template_utils"))
+# vendored template_utils package
+from renderkind.vendor.template_utils import render_template
 
-from template_utils import render_template
+# set up template and assets defaults within the pip project
+import renderkind
+
+# Get the package root directory using __file__.
+#
+# Why not importlib.resources?
+#   On Windows, importlib.resources returns a MultiplexedPath object that
+#   cannot be converted to a real Path without ugly string hacks. The
+#   __file__ approach is simpler and works reliably because setuptools
+#   guarantees that package data (templates, assets) are installed to the
+#   filesystem alongside the package.
+#
+# Assumption:
+#   This assumes the package is installed to a filesystem directory
+#   (not a zip file). For a CLI tool distributed via PyPI, this is true
+#   for all normal installation methods (pip, pipx, etc.).
+#
+# Package structure expected:
+#   renderkind/
+#   ├── __init__.py
+#   ├── cli.py
+#   ├── templates/
+#   │   └── default_template.html
+#   └── assets/
+#       ├── css/
+#       └── js/
+PACKAGE_ROOT = Path(renderkind.__file__).parent
+
+# Verify the directory exists (helpful error if structure changes)
+if not PACKAGE_ROOT.exists():
+    raise RuntimeError(f"Package root not found at {PACKAGE_ROOT}")
+
+# Default paths relative to package root
+DEFAULT_TEMPLATE = PACKAGE_ROOT / "templates" / "default_template.html"
+DEFAULT_ASSETS = PACKAGE_ROOT / "assets"
+
 
 # ============================================================================
 # CONFIGURATION
@@ -411,57 +446,6 @@ def template_html(
     return full_content
 
 
-def copy_libs_to_output(
-    libs_path: Path, assets_dest_dir: Path, force: bool = False
-) -> None:
-    """
-    TEMPORARY: Copy only needed files from libs submodules to assets directory.
-
-    TODO: Remove this once submodules are vendored into assets/ for pip distribution.
-
-    This function copies only the runtime-necessary files from submodules
-    (not tests, demos, etc.) into the appropriate locations within the
-    assets directory that was copied to output.
-
-    Args:
-        libs_path: Path to the libs directory containing submodules.
-        assets_dest_dir: Path to the assets directory within output (returned by
-                         copy_assets_to_output).
-        force: If True, overwrite existing files; if False, raise error.
-
-    Currently copies:
-        - themePicker/themePicker.js -> assets_dest_dir / "js/themePicker.js"
-
-    Raises:
-        FileNotFoundError: If source files don't exist.
-        FileExistsError: If destination exists and force is False.
-    """
-    # Define source paths (adjust based on your actual submodule structure)
-    source_js = libs_path / "themePicker/themePicker.js"
-
-    # Define destination paths (within assets directory)
-    dest_js = assets_dest_dir / "js/themePicker.js"
-
-    # Create parent directories if needed
-    dest_js.parent.mkdir(parents=True, exist_ok=True)
-
-    # Copy with force handling
-    def copy_file(src: Path, dst: Path, name: str) -> None:
-        if not src.exists():
-            raise FileNotFoundError(f"{name} not found: {src}")
-
-        if dst.exists() and not force:
-            raise FileExistsError(
-                f"{name} destination already exists: {dst}\n"
-                f"Use force=True to overwrite."
-            )
-
-        shutil.copy2(src, dst)  # copy2 preserves metadata
-        print(f"   Copied {name}: {dst.name}")
-
-    copy_file(source_js, dest_js, "themePicker.js")
-
-
 def copy_assets_to_output(
     assets_path: Path, output_path: Path, force: bool = False
 ) -> Path:
@@ -566,7 +550,7 @@ def write_html_file(content: str, output: Path, force: bool) -> None:
 
 
 def create_output(
-    content: str, output_dir: Path, assets_dir: Path, libs_dir: Path, force: bool
+    content: str, output_dir: Path, assets_dir: Path, force: bool
 ) -> Path:
     """
     Writes final HTML file to dedicated output dir and copies assets
@@ -576,7 +560,6 @@ def create_output(
         content: Final HTML string.
         output_dir: output directory to write index.html in and copy assets into
         assets_dir: path to assets directory
-        libs_dir: path to libs directory (TEMPORARY - will be removed)
         force: Whether to overwrite existing file.
 
     Returns:
@@ -590,11 +573,6 @@ def create_output(
     write_html_file(content, index_path, force)
     # copy assets directory to output dir so js and css paths will resolve in browser
     final_assets_dir = copy_assets_to_output(assets_dir, output_dir, force)
-    # ============================================================================
-    # TEMPORARY SECTION - Remove when submodules are vendored
-    # See: pip distribution migration plan
-    # ============================================================================
-    copy_libs_to_output(libs_dir, final_assets_dir, force)
 
     # return path to index.html for final logging
     return index_path
@@ -615,7 +593,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Generate a static HTML page from Markdown which includes navigation and theme selection.",
-        epilog="Example: python md2html.py input.md --output index.html --template templates/default_template.html --force",
+        epilog="Example: renderkind input.md --output index.html --template templates/default_template.html --force",
     )
     parser.add_argument(
         "input",
@@ -633,21 +611,14 @@ def main():
         "--assets",
         type=Path,
         required=False,
-        default="assets",
+        default=DEFAULT_ASSETS,
         help=f"Path to assets directory (e.g., assets). {path_help}",
-    )
-    parser.add_argument(
-        "--libs",
-        type=Path,
-        required=False,
-        default="libs",
-        help="Path to libs directory containing submodules (TEMPORARY).",
     )
     parser.add_argument(
         "--template",
         type=Path,
         required=False,
-        default="templates/default_template.html",
+        default=DEFAULT_TEMPLATE,
         help=f"Path to template file (e.g., templates/default_template.html). {path_help}",
     )
     parser.add_argument(
@@ -669,10 +640,9 @@ def main():
     output_path = args.output.resolve()
     template_path = args.template.resolve()
     assets_path = args.assets.resolve()
-    libs_path = args.libs.resolve()
 
     try:
-        print(f"📖 Reading markdown file: {input_path}")
+        print(f"\n📖 Reading markdown file: {input_path}")
         raw_content = read_markdown_file(input_path)
 
         print("📦 Parsing YAML frontmatter")
@@ -686,15 +656,13 @@ def main():
         print("🔄 Converting markdown to HTML...")
         html_content, toc, top_anchor = convert_markdown_to_html(markdown_content)
 
-        print(f"🔧 Template content: {template_path}")
+        print(f"🔧 Template content")
         final_html = template_html(
             template_path, title, description, html_content, toc, top_anchor
         )
 
-        print(f"📝 Writing HTML: {output_path}")
-        index_path = create_output(
-            final_html, output_path, assets_path, libs_path, args.force
-        )
+        print(f"📝 Writing output: {output_path}")
+        index_path = create_output(final_html, output_path, assets_path, args.force)
 
         print(f"\n✅ Done! Generated: {index_path}")
 

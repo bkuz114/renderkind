@@ -1,76 +1,101 @@
-# md2html
+# renderkind
 
-A markdown to HTML converter with YAML frontmatter, build-time table of contents, and customizable templates.
+> **Lightweight, offline-first markdown to HTML. Built with kindness.**
+
+A markdown to HTML converter with YAML frontmatter, build-time table of contents, and customizable templates. The generated output is fully self-contained, works entirely offline, and is designed with the end user's experience in mind.
+
+## Quickstart
+
+```bash
+# Install
+pip install renderkind
+
+# Convert a markdown file
+renderkind input.md
+
+# Output to a specific directory
+renderkind input.md --output dist/
+
+# See all options
+renderkind --help
+```
+
+That's it. No submodules, no manual dependency installation, no external CDNs. Just your content, rendered well.
 
 ## Features
 
 - **YAML frontmatter** – Title, description, and extensible metadata
 - **Build-time TOC** – Table of contents generated from headings (h1-h4)
+- **Fully offline** – No CDNs, no external requests, no tracking. Works anywhere.
+- **Self-contained output** – Generated HTML includes all assets; the output directory is portable
 - **Responsive default template** – Fixed header, collapsible TOC panel, color theme support
 - **Customizable** – Bring your own templates, CSS, and JavaScript
-- **No runtime dependencies** – Pure HTML output works offline
 - **Strict mode** – Validate frontmatter requirements (CI/CD friendly)
 
 ## Installation
 
-### As a submodule (recommended for projects)
+### Via pip (recommended)
 
 ```bash
-git submodule add https://github.com/bkuz114/md2html.git libs/md2html
+pip install renderkind
 ```
 
-### As a standalone script
+Requirements: Python 3.9 or higher. All dependencies are installed automatically.
+
+### From source (for development)
 
 ```bash
-git clone --recursive https://github.com/bkuz114/md2html.git
-cd md2html
+git clone https://github.com/bkuz114/renderkind.git
+cd renderkind
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Usage
 
 ```bash
-python md2html.py INPUT_MD_FILE [--output output_file] [--template template_file] [--force] [--strict]
+renderkind INPUT_MD_FILE [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict]
 ```
 
 ### Basic usage
 
-Generates `index.html` in cwd from `input.md`, using template file `templates/default_template.html`
+Generates `dist/index.html` in the current working directory from `input.md`:
 
 ```bash
-python md2html.py input.md
+renderkind input.md
 ```
 
-### With output file specified
+### With output directory specified
 
 ```bash
-python md2html.py input.md --output generated.html
+renderkind input.md --output dist/
 ```
+
+The `dist/` directory will contain `index.html` and a copy of the `assets/` directory.
 
 ### With force overwrite
 
 ```bash
-python md2html.py input.md --force
+renderkind input.md --force
 ```
 
-### With strict validation (requires title and description in input.md frontmatter)
+### With strict validation (requires title and description in frontmatter)
 
 ```bash
-python md2html.py input.md --strict
+renderkind input.md --strict
 ```
 
 ### With custom template
 
 ```bash
-python md2html.py input.md --template path/to/custom.html
+renderkind input.md --template path/to/custom.html
 ```
 
 ### Show version
 
 ```bash
-python md2html.py --version
+renderkind --version
 ```
 
 ## Frontmatter
@@ -97,7 +122,7 @@ Document content...
 
 ### Extending frontmatter
 
-The script passes all frontmatter fields to the template. Add custom fields as needed:
+The tool passes all frontmatter fields to the template. Add custom fields as needed:
 
 ```markdown
 ---
@@ -128,18 +153,29 @@ Templates use `{{placeholder}}` syntax. The following placeholders are provided:
 The default template (`templates/default_template.html`) includes:
 - Responsive fixed header
 - Collapsible TOC panel (slides from left on desktop, from top on mobile)
-- Dark mode toggle (via external `darkMode.js` or your own implementation)
+- Theme picker dropdown
 - Print stylesheet
+- **Zero external dependencies** – everything is local and offline
 
 You can override it with `--template` or replace the default file.
 
 ## CSS and JavaScript
 
-The default template links to `css/styles.css` and `js/scripts.js`. These files are **not** required – you can provide your own or modify the template to link to different paths.
+The default template references `assets/css/styles.css` and `assets/js/scripts.js`.
+
+When you run `renderkind`, it automatically copies the `assets/` directory to your output directory (e.g., `dist/assets/`). This makes the generated HTML **self-contained and portable**—you can move or share the output folder anywhere, and everything works. No network requests, no broken paths.
+
+### Customizing assets
+
+To use your own CSS or JavaScript:
+
+1. Create your own `assets/css/` and `assets/js/` directories
+2. Modify the template to point to your files, or
+3. Replace the default assets in the output directory after generation
 
 ### Default CSS features
 
-- Light/dark mode via CSS variables
+- 6 color themes via CSS variables
 - Responsive grid for card layouts
 - Table zebra striping
 - Code block styling
@@ -152,73 +188,54 @@ The default template links to `css/styles.css` and `js/scripts.js`. These files 
 - Responsive behavior for mobile
 - Table wrapper for horizontal scroll
 
-## Output Path and Assets
-
-The generated HTML assumes CSS/JS are in `css/styles.css` and `js/scripts.js`
-relative to the HTML file's location.
-
-**To avoid broken paths:**
-- Write output to current directory (or use default): `md2html.py guide.md --output index.html`
-- Or copy the `css/` and `js/` directories to your output location
-
-**Example with custom output:**
-```bash
-md2html.py guide.md --output dist/index.html
-cp -r css js dist/
-```
-
 ## Examples
 
-### Basic markdown (no frontmatter)
-
 ```bash
-python md2html.py examples/basic.md
-```
+# Basic markdown (no frontmatter)
+renderkind examples/basic.md
 
-### With frontmatter and custom template
+# With frontmatter
+renderkind examples/with-frontmatter.md
 
-```bash
-python md2html.py examples/with-frontmatter.md --template my-template.html
+# With custom template
+renderkind examples/with-frontmatter.md --template my-template.html
+
+# Full build to dist directory
+renderkind docs/index.md --output dist/ --strict
 ```
 
 See the `examples/` directory for complete working examples.
 
 ## Requirements
 
-- Python 3.8 or higher
+`renderkind` requires Python 3.9 or higher. Dependencies are installed automatically with pip:
+
 - `markdown` – Markdown parsing
 - `beautifulsoup4` – Heading ID generation
 - `pyyaml` – YAML frontmatter parsing
 
-Install all dependencies with:
-
-```bash
-pip install -r requirements.txt
-```
-
 ## Project Structure
 
 ```
-md2html/
-├── md2html.py                    # Main script
-├── requirements.txt              # Python dependencies
-├── README.md                     # This file
-├── LICENSE
-├── CHANGELOG.md
-├── assets/
-│   ├── css/
-│   │   └── styles.css            # Default styles (optionsl)
-│   ├── js/
-│   │   └── scripts.js            # Default JavaScript (optional)
-├── libs/                         # Git submodules (to move to assets/libs/)
-│   ├── themePicker/              # Theme selection submodule
-│   └── template_utils/           # Submodule for template rendering
-├── templates/
-│   └── default_template.html    # Default HTML template
-└── examples/
-    ├── basic.md
-    ├── with-frontmatter.md
-    └── with-custom-template.md
+renderkind/
+├── src/renderkind/
+│   ├── __init__.py
+│   ├── cli.py                 # Main CLI entry point
+│   ├── templates/
+│   │   └── default_template.html
+│   ├── assets/                # Copied to output directory at build time
+│   │   ├── css/
+│   │   │   └── styles.css
+│   │   └── js/
+│   │       └── scripts.js
+│   └── vendor/                # Vendored dependencies (internal)
+├── examples/
+│   ├── basic.md
+│   ├── with-frontmatter.md
+│   └── with-custom-template.md
+├── tests/
+├── pyproject.toml
+└── README.md
 ```
 
 ## Customization Guide
@@ -231,7 +248,7 @@ md2html/
 
 ### Using your own CSS/JS
 
-Modify the template's `<link>` and `<script>` tags to point to your files.
+Modify the template's `<link>` and `<script>` tags to point to your files, or replace the default assets in your output directory.
 
 ### Adding frontmatter fields
 
@@ -242,7 +259,7 @@ Add fields to your markdown frontmatter, then use `{{field_name}}` in your templ
 ### Running tests
 
 ```bash
-python -m pytest tests/  # (when tests are added)
+python -m pytest tests/
 ```
 
 ### Adding features
@@ -263,9 +280,8 @@ MIT License – see [LICENSE](LICENSE) file for details.
 ## Acknowledgments
 
 - Built with [python-markdown](https://python-markdown.github.io/)
-- Template rendering via [template_utils](https://github.com/bkuz114/template_utils)
-- Theme selection via [themePicker](https://github.com/bkuz114/themePicker)
+- Vendored utilities from [template_utils](https://github.com/bkuz114/template_utils) and [themePicker](https://github.com/bkuz114/themePicker) (kept offline and dependency-free)
 
 ---
 
-**Created for developers who want clean, maintainable documentation.**
+**Created for developers who want clean, maintainable documentation. Built with kindness. Works offline. Always.**

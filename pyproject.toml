@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "renderkind"
+version = "0.1.0"
+description = "Lightweight, offline-first markdown to HTML converter, built with care for the end user"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Ivan K.", email = "ivan.kzv@protonmail.com"}
+]
+maintainers = [
+    {name = "Ivan K.", email = "ivan.kzv@protonmail.com"}
+]
+keywords = ["markdown", "html", "converter", "cli", "offline", "static-site"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Environment :: Console",
+]
+
+# Runtime dependencies (external packages your tool needs)
+dependencies = [
+	"markdown>=3.5",
+	"beautifulsoup4>=4.12",
+	"pyyaml>=6.0",
+]
+
+# Optional: development dependencies (users can install with pip install .[dev])
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "build>=1.0",
+    "twine>=4.0",
+]
+
+# Console script entry point
+[project.scripts]
+renderkind = "renderkind.cli:main"
+
+# Where to find your package
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["renderkind*"]
+exclude = ["tests*", "examples*"]
+
+# Include non-Python files
+[tool.setuptools.package-data]
+renderkind = [
+    "templates/**/*",
+    "assets/**/*",
+    "vendor/**/*.py",
+]
+
+# Development tool configurations (optional but recommended)
+[tool.black]
+line-length = 88
+target-version = ['py39']
+extend-exclude = "src/renderkind/vendor/"
+
+[tool.ruff]
+line-length = 88
+exclude = ["src/renderkind/vendor/"]
+select = ["E", "F", "W", "I", "N", "UP"]
+
+[tool.mypy]
+python_version = "3.9"
+exclude = ["src/renderkind/vendor/"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = "test_*.py"

@@ -1,14 +1,38 @@
 # Changelog
 
-All notable changes to `md2html` will be documented in this file.
+All notable changes to `renderkind` will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-04-14
 
 ### Added
-- (Placeholder for future changes)
+- Initial release as a pip-installable package
+- CLI command `renderkind` (replaces direct script execution)
+- Automatic copying of `assets/` directory to output location
+- Full offline support – no CDNs or external dependencies
+- Windows, macOS, and Linux support via cross-platform path handling
+
+### Changed
+- **Breaking**: Package renamed from `md2html` to `renderkind`
+- **Breaking**: Command changed from `python md2html.py` to `renderkind`
+- Installation now via `pip install renderkind` (no submodules or manual setup)
+- Vendored internal dependencies instead of git submodules
+- Project restructured to `src/` layout for packaging compliance
+- Resource access now uses `importlib.resources` with `__file__` fallback for Windows
+
+### Removed
+- Direct script execution (`python md2html.py`) – use `renderkind` command instead
+- Git submodule dependencies – now vendored internally
+- `requirements.txt` – dependencies declared in `pyproject.toml`
+
+### Fixed
+- Windows path handling for template and asset discovery
+- `MultiplexedPath` conversion issues on Windows
+
+### Security
+- No changes – package has no external network dependencies
 
 ## [0.1.0] - 2026-04-12
 
@@ -48,6 +72,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues
 - None for this release
+
+## [Unreleased]
+
+### Planned
+- Favicon.ico support
+- Additional template options
+- Watch mode for automatic rebuilds
+- User-defined output filename (beyond `index.html`)
 
 ---
 

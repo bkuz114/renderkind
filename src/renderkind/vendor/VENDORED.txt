@@ -1,0 +1,24 @@
+# Vendored Dependencies for md2html
+# Last updated: 2026-04-14
+# See CONTRIBUTING.md for vendoring policy
+
+## submodule1 (https://github.com/bkuz114/template_utils)
+- Version: 0.2.0 (commit abc123def456)
+- Original license: MIT
+- Files vendored:
+  - template_utils.py → submodule1_parser.py
+- Modifications: None (vendored as-is)
+- Reason: Provides markdown AST parsing; only the parser is needed, not the full library
+
+## submodule2 (https://github.com/bkuz114/themePicker)
+- Version: 1.0.4 (commit 789xyz012)
+- Original license: BSD 3-Clause
+- Files vendored:
+  - themePicker.js → assets/js/themePicker.js
+- Modifications: None (vendored as-is)
+- Reason: HTML rendering logic; CLI tool only uses the renderer, not the bundler or watcher
+
+## Vendor Maintenance Notes
+- To update: cd ../submodule1 && git pull && cp core/parser.py ../md2html/src/md2html/vendor/
+- Run tests after any vendored update
+- Do not edit vendored files directly; modify source and re-vendor
