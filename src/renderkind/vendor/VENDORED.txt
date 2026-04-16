@@ -1,4 +1,4 @@
-# Vendored Dependencies for md2html
+# Vendored Dependencies for renderkind
 # Last updated: 2026-04-14
 # See CONTRIBUTING.md for vendoring policy
 
@@ -19,6 +19,6 @@
 - Reason: HTML rendering logic; CLI tool only uses the renderer, not the bundler or watcher
 
 ## Vendor Maintenance Notes
-- To update: cd ../submodule1 && git pull && cp core/parser.py ../md2html/src/md2html/vendor/
+- To update: cd ../submodule1 && git pull && cp core/parser.py ../renderkind/src/renderkind/vendor/
 - Run tests after any vendored update
 - Do not edit vendored files directly; modify source and re-vendor
