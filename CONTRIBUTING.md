@@ -5,7 +5,7 @@ Thank you for your interest in contributing.
 ## Development Setup
 
 ```bash
-git clone https://github.com/bkuz114/md2html.git
+git clone https://github.com/bkuz114/renderkind.git
 cd renderkind
 python -m venv venv
 source venv/bin/activate
