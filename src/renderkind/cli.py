@@ -393,6 +393,7 @@ def template_html(
     content: str,
     toc_html: str,
     top_anchor: str,
+    asset_path_prefix: str,
 ) -> str:
     """
     Embed converted markdown content into template file.
@@ -430,6 +431,7 @@ def template_html(
         "description": description,
         "toc": toc_html,
         "anchor-top": top_anchor,
+        "asset_path_prefix": asset_path_prefix,
     }
 
     # Generate warning comment referencing the source template
@@ -447,7 +449,7 @@ def template_html(
 
 
 def copy_assets_to_output(
-    assets_path: Path, output_path: Path, force: bool = False
+    assets_path: Path, assets_dest_dir: Path, force: bool = False
 ) -> Path:
     """
     Copy the assets directory to the output file's parent directory.
@@ -459,23 +461,22 @@ def copy_assets_to_output(
 
     Args:
         assets_path: Path to the source assets directory.
-        output_path: Path to the output directory. assets will be copied here.
+        assets_dest_dir: Path to the copy assets to.
         force: If True, overwrite existing assets directory; if False, raise
                error if destination already exists.
 
-    Returns:
-        Path to the copied assets directory within the output directory.
+    Returns: None
 
     Raises:
-        FileNotFoundError: If assets_path or output_path do not exist.
-        NotADirectoryError: If assets_path or output_path is not a directory.
-        FileExistsError: If assets destination exists and force is False.
+        FileNotFoundError: If assets_path does not exist.
+        NotADirectoryError: If assets_path is not a directory.
+        FileExistsError: If assets_dest_dir exists and force is False.
         OSError: For other file operation errors (permissions, disk full, etc.).
 
     Examples:
         >>> from pathlib import Path
         >>> assets = Path("/project/assets")
-        >>> output = Path("/project/output")
+        >>> output = Path("/project/output/assets")
         >>> copy_assets_to_output(assets, output, force=True)
         # Copies /project/assets to /project/output/assets
 
@@ -491,15 +492,6 @@ def copy_assets_to_output(
 
     if not assets_path.is_dir():
         raise NotADirectoryError(f"Assets path is not a directory: {assets_path}")
-
-    if not output_path.exists():
-        raise FileNotFoundError(f"Output path does not exist: {output_path}")
-
-    if not output_path.is_dir():
-        raise NotADirectoryError(f"Output path is not a directory: {output_path}")
-
-    # Determine destination: output directory + assets directory name
-    assets_dest_dir = output_path / assets_path.name
 
     # Handle existing destination
     if assets_dest_dir.exists():
@@ -525,8 +517,74 @@ def copy_assets_to_output(
             f"Failed to copy assets from {assets_path} to {assets_dest_dir}: {e}"
         )
 
-    # return final assets path within output dir
-    return assets_dest_dir
+
+def get_asset_path_prefix(html_path: Path, assets_dir: Path) -> str:
+    """
+    Calculate the relative filesystem path from an HTML file to an assets directory.
+
+    This function is designed for static site generation where you need to insert
+    asset paths (CSS, JS, images) into HTML files using relative URLs. For example,
+    if your HTML file lives in a nested directory structure, this tells you how
+    many "../" segments are needed to reach the assets directory from that HTML
+    file's location.
+
+    The returned path always uses POSIX-style forward slashes ("/") and includes
+    a trailing slash for easy concatenation with filenames.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> html_path = Path("dist/getting-started/install.html")
+        >>> assets_dir = Path("dist/assets/")
+        >>> get_asset_path_prefix(html_path, assets_dir)
+        '../assets/'
+
+        >>> html_path = Path("dist/install.html")
+        >>> assets_dir = Path("dist/assets/")
+        >>> get_asset_path_prefix(html_path, assets_dir)
+        'assets/'
+
+        >>> html_path = Path("dist/index.html")
+        >>> assets_dir = Path("dist/assets/")
+        >>> get_asset_path_prefix(html_path, assets_dir)
+        'assets/'
+
+    Args:
+        html_path: Path to the HTML file (may not exist on disk yet)
+        assets_dir: Path to the directory containing assets (may not exist yet)
+
+    Returns:
+        A relative path string ending with "/". Returns empty string if the
+        HTML file and assets directory are in the same directory.
+
+    Notes:
+        This function works with hypothetical paths that don't exist on disk.
+        It performs purely lexical path manipulation without filesystem access.
+
+    Why not use Path.relative_to()?
+        Path.relative_to() only works when one path is a direct subpath of the
+        other. In our typical use case, the HTML file is nested (e.g.,
+        "docs/guide/install.html") while the assets directory is elsewhere
+        (e.g., "assets/"). These are cousin paths, not parent-child, so
+        relative_to() raises ValueError. We need to ascend using "../" segments,
+        which os.path.relpath handles.
+    """
+
+    # Get the directory containing the HTML file
+    html_dir = html_path.parent
+
+    # Compute rel path from HTML dir to assets dir
+    # - os.path.relpath() computes rel path from start to target
+    #   e.g.: relpath("dist/getting-started", "dist/assets") -> "../assets"
+    # - counts ".." segments automatically, even for deeply nested paths.
+    # - returns OS-native separators
+    rel_path = os.path.relpath(str(assets_dir), start=str(html_dir))
+
+    # os.path.relpath returns . if both dirs same
+    if rel_path == ".":
+        return ""
+
+    # Convert Windows backslashes to forward slashes for HTML compatibility
+    return rel_path.replace("\\", "/") + "/"
 
 
 def write_html_file(content: str, output: Path, force: bool) -> None:
@@ -550,7 +608,11 @@ def write_html_file(content: str, output: Path, force: bool) -> None:
 
 
 def create_output(
-    content: str, output_dir: Path, assets_dir: Path, force: bool
+    content: str,
+    index_path: Path,
+    assets_dir: Path,
+    final_assets_dir: Path,
+    force: bool,
 ) -> Path:
     """
     Writes final HTML file to dedicated output dir and copies assets
@@ -558,24 +620,19 @@ def create_output(
 
     Args:
         content: Final HTML string.
-        output_dir: output directory to write index.html in and copy assets into
-        assets_dir: path to assets directory
+        index_path: Path to write final HTML file to
+        assets_dir: Path to src assets directory
+        final_assets_dir: Path to copy assets_dir to
         force: Whether to overwrite existing file.
 
-    Returns:
-        Path to index.html file that is written, if successful
+    Returns: None
     """
-
-    # path to final index.html
-    index_path = output_dir / "index.html"
 
     # create index.html in output dir
     write_html_file(content, index_path, force)
-    # copy assets directory to output dir so js and css paths will resolve in browser
-    final_assets_dir = copy_assets_to_output(assets_dir, output_dir, force)
 
-    # return path to index.html for final logging
-    return index_path
+    # copy assets directory to output dir so js and css paths will resolve in browser
+    copy_assets_to_output(assets_dir, final_assets_dir, force)
 
 
 # ============================================================================
@@ -656,15 +713,28 @@ def main():
         print("🔄 Converting markdown to HTML...")
         html_content, toc, top_anchor = convert_markdown_to_html(markdown_content)
 
+        print("✂️  Calculate relative path to assets/ dir for final HTML")
+        final_html_path = output_path / "index.html"
+        final_assets_dir = output_path / "assets"
+        asset_path_prefix = get_asset_path_prefix(final_html_path, final_assets_dir)
+
         print(f"🔧 Template content")
         final_html = template_html(
-            template_path, title, description, html_content, toc, top_anchor
+            template_path,
+            title,
+            description,
+            html_content,
+            toc,
+            top_anchor,
+            asset_path_prefix,
         )
 
         print(f"📝 Writing output: {output_path}")
-        index_path = create_output(final_html, output_path, assets_path, args.force)
+        create_output(
+            final_html, final_html_path, assets_path, final_assets_dir, args.force
+        )
 
-        print(f"\n✅ Done! Generated: {index_path}")
+        print(f"\n✅ Done! Generated: {final_html_path}")
 
     except FileNotFoundError as e:
         print(f"\n❌ Error:\n{e}\n")
