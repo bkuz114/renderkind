@@ -1,5 +1,8 @@
 # renderkind
 
+[![PyPI version](https://badge.fury.io/py/renderkind.svg)](https://pypi.org/project/renderkind/)
+[![Python versions](https://img.shields.io/pypi/pyversions/renderkind.svg)](https://pypi.org/project/renderkind/)
+
 > **Lightweight, offline-first markdown to HTML. Built with kindness.**
 
 A markdown to HTML converter with YAML frontmatter, build-time table of contents, and customizable templates. The generated output is fully self-contained, works entirely offline, and is designed with the end user's experience in mind.
