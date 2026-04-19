@@ -933,6 +933,11 @@ def main():
         help="Overwrite existing output file if it exists",
     )
     parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Delete output directory before processing (requires --force)",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="Require 'title' and 'description' in frontmatter (exits with error if missing)",
@@ -951,6 +956,15 @@ def main():
     output_path = args.output.resolve()
     template_path = args.template.resolve()
     assets_path = args.assets.resolve()
+
+    # delete output dir if exists and --clean provided
+    if args.clean:
+        if not args.force:
+            print("❌ Error: --clean requires --force", file=sys.stderr)
+            sys.exit(1)
+        if output_path.exists():
+            shutil.rmtree(output_path)
+            print(f"🧹 Cleaned output directory: {output_path}")
 
     try:
         # Collect input markdown files
