@@ -93,6 +93,49 @@ MD_EXTENSIONS = [
 # ============================================================================
 
 
+def is_in_hidden_directory(path: Path, root_dir: Path) -> bool:
+    """Check if path is inside a hidden directory (e.g., .git/, .venv/)."""
+    rel_parts = path.relative_to(root_dir).parts
+    return any(part.startswith(".") for part in rel_parts)
+
+
+def discover_markdown_files(root_dir: Path, recursive: bool) -> List[Path]:
+    """
+    Discover markdown files in a directory.
+
+    Args:
+        root_dir: Directory to search
+        recursive: If True, search subdirectories; if False, top-level only
+
+    Returns:
+        Sorted list of Path objects (absolute paths)
+
+    Rules:
+        - Excludes symlinks (prints warning to stderr)
+        - Excludes files inside hidden directories (e.g., .git/, .venv/)
+        - Includes hidden markdown files (e.g., .draft.md)
+    """
+    pattern = "**/*.md" if recursive else "*.md"
+    all_files = list(root_dir.glob(pattern))
+
+    files = []
+    for f in all_files:
+        # Skip symlinks with warning
+        if f.is_symlink():
+            print(
+                f"   ⚠️  Skipping symlink: {f.relative_to(root_dir)}", file=sys.stderr
+            )
+            continue
+
+        # Skip files inside hidden directories
+        if is_in_hidden_directory(f, root_dir):
+            continue
+
+        files.append(f)
+
+    return sorted(files)
+
+
 def read_markdown_file(markdown_path: Path) -> str:
     """
     Reads and validates input markdown file and returns raw content.
@@ -199,39 +242,37 @@ def extract_data_from_frontmatter(
 
     # Extract or validate title
     title = metadata.get("title")
-    if title:
-        print(f"   Title from frontmatter: {title}")
-    elif strict:
-        raise ValueError("--strict: 'title' field required in frontmatter")
-    else:
-        # Extract title from markdown as fallback
-        title = extract_title_from_markdown(md_content)
-        if title:
-            print(f"⚠️  Warning: No 'title' in frontmatter.", file=sys.stderr)
-            print(f'    Using first h1 as title: "{title}"', file=sys.stderr)
-            print(f"    This fallback will be deprecated in v2.0.", file=sys.stderr)
-            print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
+    if not title:
+        if strict:
+            raise ValueError("--strict: 'title' field required in frontmatter")
         else:
-            title = "Untitled Document"
-            print(
-                f"⚠️  Warning: No 'title' in frontmatter and no h1 found.",
-                file=sys.stderr,
-            )
-            print(f'    Using fallback: "{title}"', file=sys.stderr)
-            print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
+            # Extract title from markdown as fallback
+            title = extract_title_from_markdown(md_content)
+            if title:
+                print(f"⚠️  Warning: No 'title' in frontmatter.", file=sys.stderr)
+                print(f'    Using first h1 as title: "{title}"', file=sys.stderr)
+                print(f"    This fallback will be deprecated in v2.0.", file=sys.stderr)
+                print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
+            else:
+                title = "Untitled Document"
+                print(
+                    f"⚠️  Warning: No 'title' in frontmatter and no h1 found.",
+                    file=sys.stderr,
+                )
+                print(f'    Using fallback: "{title}"', file=sys.stderr)
+                print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
 
     # Extract description
     description = metadata.get("description", "")
-    if description:
-        print(f"   Description from frontmatter: {description}")
-    elif strict:
-        raise ValueError("--strict: 'description' field required in frontmatter")
-    else:
-        print(f"ℹ️  Info: No 'description' in frontmatter.", file=sys.stderr)
-        print(
-            f"    <meta name='description'> will be empty. SEO may be affected.",
-            file=sys.stderr,
-        )
+    if not description:
+        if strict:
+            raise ValueError("--strict: 'description' field required in frontmatter")
+        else:
+            print(f"ℹ️  Info: No 'description' in frontmatter.", file=sys.stderr)
+            print(
+                f"    <meta name='description'> will be empty. SEO may be affected.",
+                file=sys.stderr,
+            )
 
     return title, description
 
@@ -604,35 +645,243 @@ def write_html_file(content: str, output: Path, force: bool) -> None:
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as f:
+        print(f"✅ Generated: {output}")
         f.write(content)
 
 
-def create_output(
-    content: str,
-    index_path: Path,
-    assets_dir: Path,
+def process_single_file(
+    input_path: Path,
+    output_path: Path,
+    template_path: Path,
+    assets_path: Path,
     final_assets_dir: Path,
     force: bool,
+    strict: bool,
 ) -> Path:
     """
-    Writes final HTML file to dedicated output dir and copies assets
-    to that directory to resolve <script> and <link> paths.
+    Process a single markdown file and return the output path.
+
+    This function handles the complete conversion pipeline for one file:
+    reading, frontmatter parsing, markdown conversion, template rendering,
+    and writing the output HTML.
 
     Args:
-        content: Final HTML string.
-        index_path: Path to write final HTML file to
-        assets_dir: Path to src assets directory
-        final_assets_dir: Path to copy assets_dir to
-        force: Whether to overwrite existing file.
+        input_path: Path to the source markdown file.
+        output_path: Path where the generated HTML file will be written.
+        template_path: Path to the HTML template file.
+        assets_path: Path to the source assets directory (css/, js/).
+        final_assets_dir: Path where assets will be copied in the output
+            directory (e.g., dist/assets/).
+        force: If True, overwrite existing output files. If False, raise
+            FileExistsError when output already exists.
+        strict: If True, require 'title' and 'description' in frontmatter.
+            If False, use fallbacks (first h1 for title, empty for description).
 
-    Returns: None
+    Returns:
+        Path to the generated HTML file (same as output_path).
+
+    Raises:
+        FileExistsError: If output_path exists and force is False.
+        ValueError: If strict is True and frontmatter is missing required fields.
+        Various exceptions from markdown conversion or file I/O.
+
+    Example:
+        >>> process_single_file(
+        ...     Path("docs/intro.md"),
+        ...     Path("dist/intro.html"),
+        ...     Path("templates/default.html"),
+        ...     Path("assets"),
+        ...     Path("dist/assets"),
+        ...     force=True,
+        ...     strict=False
+        ...     )
+        PosixPath('dist/intro.html')
     """
 
-    # create index.html in output dir
-    write_html_file(content, index_path, force)
+    # Read and parse
+    raw_content = read_markdown_file(input_path)
+    metadata, markdown_content = parse_frontmatter(raw_content)
+    title, description = extract_data_from_frontmatter(
+        metadata, markdown_content, strict
+    )
 
-    # copy assets directory to output dir so js and css paths will resolve in browser
-    copy_assets_to_output(assets_dir, final_assets_dir, force)
+    # Convert markdown to HTML
+    html_content, toc, top_anchor = convert_markdown_to_html(markdown_content)
+
+    # Calculate asset path prefix
+    asset_path_prefix = get_asset_path_prefix(output_path, final_assets_dir)
+
+    # Render template
+    final_html = template_html(
+        template_path,
+        title,
+        description,
+        html_content,
+        toc,
+        top_anchor,
+        asset_path_prefix,
+    )
+
+    # Write output
+    write_html_file(final_html, output_path, force)
+
+    return output_path
+
+
+def process_all_files(
+    md_files_mapping: Dict[Path, Path],
+    template_path: Path,
+    assets_path: Path,
+    final_assets_dir: Path,
+    force: bool,
+    strict: bool,
+) -> List[Path]:
+    """
+    Process all markdown files from a mapping dictionary.
+
+    Iterates through each (input_path, output_path) pair and calls
+    process_single_file(). Handles error aggregation and optional fast-fail
+    when strict mode is enabled. Copies assets to the output directory once
+    after all files are processed.
+
+    Args:
+        md_files_mapping: Dictionary mapping source markdown files to their
+            destination HTML paths. Typically created by build_file_mapping().
+        template_path: Path to the HTML template file (passed to each file).
+        assets_path: Path to the source assets directory (css/, js/).
+        final_assets_dir: Path where assets will be copied in the output
+            directory (e.g., dist/assets/).
+        force: If True, overwrite existing output files. If False, raise
+            FileExistsError when output already exists.
+        strict: If True, abort on first error and re-raise the exception.
+            If False, log errors and continue processing remaining files.
+
+    Returns:
+        List of successfully generated HTML file paths.
+
+    Note:
+        Assets are copied once after all files are processed, not per file.
+        This assumes all HTML files share the same assets directory, which
+        is true for the current design.
+
+    Example:
+        >>> mapping = {
+        ...     Path("docs/intro.md"): Path("dist/intro.html"),
+        ...     Path("docs/guide.md"): Path("dist/guide.html"),
+        ... }
+        >>> process_all_files(mapping, Path("template.html"), Path("assets"),
+        ...                   Path("dist/assets"), force=True, strict=False)
+        [PosixPath('dist/intro.html'), PosixPath('dist/guide.html')]
+    """
+
+    if not md_files_mapping:
+        return []
+
+    output_paths = []
+    failed_count = 0
+
+    for md_file, file_output_path in md_files_mapping.items():
+        try:
+            output_file = process_single_file(
+                md_file,
+                file_output_path,
+                template_path,
+                assets_path,
+                final_assets_dir,
+                force,
+                strict,
+            )
+            output_paths.append(output_file)
+        except Exception as e:
+            print(f"   ❌ Failed: {md_file} - {e}", file=sys.stderr)
+            failed_count += 1
+            if strict:
+                raise  # Fail fast in strict mode
+
+    # Copy assets once after all files processed (or before, doesn't matter)
+    copy_assets_to_output(assets_path, final_assets_dir, force)
+
+    print(f"\n✅ Processed {len(output_paths)} of {len(md_files_mapping)} files")
+    if failed_count > 0 and not strict:
+        print(f"   ⚠️  {failed_count} file(s) failed", file=sys.stderr)
+
+    return output_paths
+
+
+def build_file_mapping(
+    input_path: Path, output_dir: Path, recursive: bool
+) -> Dict[Path, Path]:
+    """
+    Build a mapping from source markdown files to their output HTML paths.
+
+    Accepts either a single file or a directory. For a directory, discovers
+    all markdown files (respecting recursive flag, excluding symlinks and
+    hidden directories) and preserves the directory structure in the output.
+
+    Args:
+        input_path: Path to either a single .md file or a directory
+            containing .md files.
+        output_dir: Base output directory (e.g., "dist/"). Output paths
+            preserve subdirectory structure relative to input_path.
+        recursive: If True and input_path is a directory, search
+            subdirectories recursively. If False, only top-level files.
+            Ignored when input_path is a single file.
+
+    Returns:
+        Dictionary mapping each source markdown file (Path) to its
+        corresponding output HTML path (Path).
+
+    Raises:
+        SystemExit: If input_path does not exist.
+
+    Example:
+        >>> mapping = build_file_mapping(
+        ...     Path("docs/"), Path("dist/"), recursive=True
+        ... )
+        >>> mapping[Path("docs/getting-started/install.md")]
+        PosixPath('dist/getting-started/install.html')
+
+    Note:
+        For single-file input, output_dir is treated as the destination
+        directory, and the output filename is derived from the input
+        filename with .html extension.
+    """
+
+    md_files_mapping = {}
+    md_files = []
+    input_dir = None
+    if input_path.is_file():
+        # Single file mode
+        md_files = [input_path]
+        input_dir = input_path.parent
+    elif input_path.is_dir():
+        # Batch mode
+        input_dir = input_path
+
+        # Discover markdown files
+        md_files = discover_markdown_files(input_dir, recursive)
+
+        if not md_files:
+            print(f"⚠️  No markdown files found in {input_dir}")
+
+        print(f"\n📁 Found {len(md_files)} markdown file(s) to process")
+    else:
+        print(f"❌ Error: Input path does not exist: {input_path}")
+        sys.exit(1)
+
+    # Create mapping of input md file -> output path
+
+    for md_file in md_files:
+        # Compute relative path from input_dir
+        rel_path = md_file.relative_to(input_dir)
+        # Change extension from .md to .html
+        rel_html = rel_path.with_suffix(".html")
+        # Build output path preserving directory structure
+        file_output_path = output_dir / rel_html
+        # create input / output mapping
+        md_files_mapping[md_file] = file_output_path
+
+    return md_files_mapping
 
 
 # ============================================================================
@@ -688,6 +937,11 @@ def main():
         action="store_true",
         help="Require 'title' and 'description' in frontmatter (exits with error if missing)",
     )
+    parser.add_argument(
+        "--no-recursive",
+        action="store_true",
+        help="Process only top-level directory (do not recurse into subdirectories)",
+    )
 
     args = parser.parse_args()
 
@@ -699,43 +953,24 @@ def main():
     assets_path = args.assets.resolve()
 
     try:
-        print(f"\n📖 Reading markdown file: {input_path}")
-        raw_content = read_markdown_file(input_path)
-
-        print("📦 Parsing YAML frontmatter")
-        metadata, markdown_content = parse_frontmatter(raw_content)
-
-        print("🔑 Extract title and description from metadata...")
-        title, description = extract_data_from_frontmatter(
-            metadata, markdown_content, args.strict
+        # Collect input markdown files
+        # (returns dict of <input md Path> -> <output Path>)
+        md_files_mapping = build_file_mapping(
+            input_path, output_path, not args.no_recursive
         )
 
-        print("🔄 Converting markdown to HTML...")
-        html_content, toc, top_anchor = convert_markdown_to_html(markdown_content)
-
-        print("✂️  Calculate relative path to assets/ dir for final HTML")
-        final_html_path = output_path / "index.html"
+        # Final assets directory (shared across all files)
         final_assets_dir = output_path / "assets"
-        asset_path_prefix = get_asset_path_prefix(final_html_path, final_assets_dir)
 
-        print(f"🔧 Template content")
-        final_html = template_html(
+        # Process all the files
+        process_all_files(
+            md_files_mapping,
             template_path,
-            title,
-            description,
-            html_content,
-            toc,
-            top_anchor,
-            asset_path_prefix,
+            assets_path,
+            final_assets_dir,
+            args.force,
+            args.strict,
         )
-
-        print(f"📝 Writing output: {output_path}")
-        create_output(
-            final_html, final_html_path, assets_path, final_assets_dir, args.force
-        )
-
-        print(f"\n✅ Done! Generated: {final_html_path}")
-
     except FileNotFoundError as e:
         print(f"\n❌ Error:\n{e}\n")
         sys.exit(1)
