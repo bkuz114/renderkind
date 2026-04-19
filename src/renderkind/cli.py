@@ -32,6 +32,7 @@ from typing import List, Dict, Tuple
 import yaml
 import markdown
 from bs4 import BeautifulSoup
+import logging
 
 # vendored template_utils package
 from renderkind.vendor.template_utils import render_template
@@ -89,6 +90,25 @@ MD_EXTENSIONS = [
 ]
 
 # ============================================================================
+# LOGGING
+# ============================================================================
+
+
+# Setup basic logging (called once in main)
+def setup_logging(quiet: bool = False):
+    """Configure logging based on quiet flag."""
+    level = logging.WARNING if quiet else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(message)s",  # Just the message, no extra prefix
+        stream=sys.stdout,
+    )
+
+
+# Get module logger
+logger = logging.getLogger(__name__)
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
@@ -122,9 +142,7 @@ def discover_markdown_files(root_dir: Path, recursive: bool) -> List[Path]:
     for f in all_files:
         # Skip symlinks with warning
         if f.is_symlink():
-            print(
-                f"   ⚠️  Skipping symlink: {f.relative_to(root_dir)}", file=sys.stderr
-            )
+            logger.warning(f"   ⚠️  Skipping symlink: {f.relative_to(root_dir)}")
             continue
 
         # Skip files inside hidden directories
@@ -206,8 +224,8 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     try:
         metadata = yaml.safe_load(yaml_block) or {}
     except yaml.YAMLError as e:
-        print(f"⚠️  Warning: Malformed frontmatter YAML: {e}", file=sys.stderr)
-        print("   Ignoring frontmatter and continuing.", file=sys.stderr)
+        logger.warning(f"⚠️  Warning: Malformed frontmatter YAML: {e}")
+        logger.warning("   Ignoring frontmatter and continuing.")
         return {}, content
 
     return metadata, rest_content
@@ -249,18 +267,17 @@ def extract_data_from_frontmatter(
             # Extract title from markdown as fallback
             title = extract_title_from_markdown(md_content)
             if title:
-                print(f"⚠️  Warning: No 'title' in frontmatter.", file=sys.stderr)
-                print(f'    Using first h1 as title: "{title}"', file=sys.stderr)
-                print(f"    This fallback will be deprecated in v2.0.", file=sys.stderr)
-                print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
+                logger.warning(f"⚠️  Warning: No 'title' in frontmatter.")
+                logger.warning(f'    Using first h1 as title: "{title}"')
+                logger.warning(f"    This fallback will be deprecated in v2.0.")
+                logger.warning(f'    Add frontmatter: title: "{title}"')
             else:
                 title = "Untitled Document"
-                print(
-                    f"⚠️  Warning: No 'title' in frontmatter and no h1 found.",
-                    file=sys.stderr,
+                logger.warning(
+                    f"⚠️  Warning: No 'title' in frontmatter and no h1 found."
                 )
-                print(f'    Using fallback: "{title}"', file=sys.stderr)
-                print(f'    Add frontmatter: title: "{title}"', file=sys.stderr)
+                logger.warning(f'    Using fallback: "{title}"')
+                logger.warning(f'    Add frontmatter: title: "{title}"')
 
     # Extract description
     description = metadata.get("description", "")
@@ -268,10 +285,9 @@ def extract_data_from_frontmatter(
         if strict:
             raise ValueError("--strict: 'description' field required in frontmatter")
         else:
-            print(f"ℹ️  Info: No 'description' in frontmatter.", file=sys.stderr)
-            print(
-                f"    <meta name='description'> will be empty. SEO may be affected.",
-                file=sys.stderr,
+            logger.warning(f"ℹ️  Info: No 'description' in frontmatter.")
+            logger.warning(
+                f"    <meta name='description'> will be empty. SEO may be affected."
             )
 
     return title, description
@@ -645,7 +661,7 @@ def write_html_file(content: str, output: Path, force: bool) -> None:
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as f:
-        print(f"✅ Generated: {output}")
+        logger.info(f"✅ Generated: {output}")
         f.write(content)
 
 
@@ -793,7 +809,7 @@ def process_all_files(
             )
             output_paths.append(output_file)
         except Exception as e:
-            print(f"   ❌ Failed: {md_file} - {e}", file=sys.stderr)
+            logger.error(f"   ❌ Failed: {md_file} - {e}")
             failed_count += 1
             if strict:
                 raise  # Fail fast in strict mode
@@ -801,9 +817,9 @@ def process_all_files(
     # Copy assets once after all files processed (or before, doesn't matter)
     copy_assets_to_output(assets_path, final_assets_dir, force)
 
-    print(f"\n✅ Processed {len(output_paths)} of {len(md_files_mapping)} files")
+    logger.info(f"\n✅ Processed {len(output_paths)} of {len(md_files_mapping)} files")
     if failed_count > 0 and not strict:
-        print(f"   ⚠️  {failed_count} file(s) failed", file=sys.stderr)
+        logger.error(f"   ⚠️  {failed_count} file(s) failed")
 
     return output_paths
 
@@ -862,11 +878,11 @@ def build_file_mapping(
         md_files = discover_markdown_files(input_dir, recursive)
 
         if not md_files:
-            print(f"⚠️  No markdown files found in {input_dir}")
+            logger.warning(f"⚠️  No markdown files found in {input_dir}")
 
-        print(f"\n📁 Found {len(md_files)} markdown file(s) to process")
+        logger.info(f"\n📁 Found {len(md_files)} markdown file(s) to process")
     else:
-        print(f"❌ Error: Input path does not exist: {input_path}")
+        logger.error(f"❌ Error: Input path does not exist: {input_path}")
         sys.exit(1)
 
     # Create mapping of input md file -> output path
@@ -947,8 +963,16 @@ def main():
         action="store_true",
         help="Process only top-level directory (do not recurse into subdirectories)",
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress all non-error output (useful for scripting)",
+    )
 
     args = parser.parse_args()
+
+    # Setup logging before any script logic
+    setup_logging(quiet=args.quiet)
 
     # Resolve all paths to absolute (handles relative, symlinks, etc.)
     # rel paths will be evaluated rel callers cwd, NOT script dir
@@ -960,11 +984,11 @@ def main():
     # delete output dir if exists and --clean provided
     if args.clean:
         if not args.force:
-            print("❌ Error: --clean requires --force", file=sys.stderr)
+            logger.error("❌ Error: --clean requires --force")
             sys.exit(1)
         if output_path.exists():
             shutil.rmtree(output_path)
-            print(f"🧹 Cleaned output directory: {output_path}")
+            logger.info(f"🧹 Cleaned output directory: {output_path}")
 
     try:
         # Collect input markdown files
@@ -986,13 +1010,13 @@ def main():
             args.strict,
         )
     except FileNotFoundError as e:
-        print(f"\n❌ Error:\n{e}\n")
+        logger.error(f"\n❌ Error:\n{e}\n")
         sys.exit(1)
     except FileExistsError as e:
-        print(f"\n⚠️  Error:\n{e}\n")
+        logger.error(f"\n⚠️  Error:\n{e}\n")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}\n")
+        logger.error(f"\n❌ Unexpected error: {e}\n")
         sys.exit(1)
 
 
