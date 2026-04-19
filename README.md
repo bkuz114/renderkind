@@ -24,13 +24,17 @@ That's it. No submodules, no manual dependency installation, no external CDNs. J
 
 ## Features
 
+- **Single file or batch processing** – Convert individual files or entire directories
 - **YAML frontmatter** – Title, description, and extensible metadata
 - **Build-time TOC** – Table of contents generated from headings (h1-h4)
-- **Fully offline** – No CDNs, no external requests, no tracking. Works anywhere.
-- **Self-contained output** – Generated HTML includes all assets; the output directory is portable
-- **Responsive default template** – Fixed header, collapsible TOC panel, color theme support
+- **Automatic index page** – Navigable directory tree for batch output
+- **Responsive default template** – Fixed header, collapsible TOC panel, dark mode support
+- **Smart asset handling** – Assets copied once, paths resolved at any depth
 - **Customizable** – Bring your own templates, CSS, and JavaScript
+- **No runtime dependencies** – Pure HTML output works offline
 - **Strict mode** – Validate frontmatter requirements (CI/CD friendly)
+- **Clean builds** – `--clean` flag for fresh output directories
+- **Quiet mode** – Suppress output for scripting
 
 ## Installation
 
@@ -55,47 +59,164 @@ pip install -e .
 ## Usage
 
 ```bash
-renderkind INPUT_MD_FILE [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict]
+renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
 ```
 
-### Basic usage
+### Basic Usage
 
-Generates `dist/index.html` in the current working directory from `input.md`:
+#### Single file mode
+
+Process a single markdown file (outputs to `dist/index.html`):
 
 ```bash
-renderkind input.md
+renderkind docs/intro.md
 ```
 
-### With output directory specified
+#### Batch mode (directory)
+
+Process all markdown files in a directory, preserving nested structure:
 
 ```bash
-renderkind input.md --output dist/
+renderkind docs/
 ```
 
-The `dist/` directory will contain `index.html` and a copy of the `assets/` directory.
-
-### With force overwrite
-
-```bash
-renderkind input.md --force
+Output structure:
+```
+dist/
+├── index.html              # Auto-generated index page
+├── intro.html
+├── getting-started/
+│   ├── install.html
+│   └── quickstart.html
+└── assets/                 # Copied automatically
+    ├── css/
+    └── js/
 ```
 
-### With strict validation (requires title and description in frontmatter)
+### Output Directory
+
+Specify a custom output directory (default: `dist/`):
 
 ```bash
-renderkind input.md --strict
+renderkind docs/ --output site/
 ```
 
-### With custom template
+### Index Page Generation
+
+In batch mode, an index page (`index.html`) is automatically generated with a navigable directory tree:
 
 ```bash
-renderkind input.md --template path/to/custom.html
+renderkind docs/
+# Generates dist/index.html
+```
+
+Disable index generation:
+
+```bash
+renderkind docs/ --no-index
+```
+
+Use a custom index filename:
+
+```bash
+renderkind docs/ --index-name README.html
+```
+
+### File Discovery
+
+Process only top-level files (no subdirectories):
+
+```bash
+renderkind docs/ --no-recursive
+```
+
+### Overwrite Behavior
+
+Force overwrite of existing output files:
+
+```bash
+renderkind docs/ --force
+```
+
+Clean output directory before processing (requires `--force`):
+
+```bash
+renderkind docs/ --clean --force
+```
+
+### Output Verbosity
+
+Suppress all non-error output (useful for scripting or CI/CD):
+
+```bash
+renderkind docs/ --quiet
+```
+
+### Frontmatter Validation
+
+Require `title` and `description` in frontmatter (exits with error if missing):
+
+```bash
+renderkind docs/ --strict
+```
+
+### Custom Template
+
+Use a custom HTML template:
+
+```bash
+renderkind docs/ --template path/to/custom.html
 ```
 
 ### Show version
 
 ```bash
 renderkind --version
+```
+
+### Show Help
+
+```bash
+renderkind --help
+```
+
+## Examples
+
+### Single file with custom output
+
+```bash
+renderkind docs/intro.md --output build/
+# Creates build/index.html
+```
+
+### Complete documentation site
+
+```bash
+# Process entire docs folder
+renderkind docs/ --output site/ --clean --force
+
+# Output:
+# site/
+# ├── index.html (auto-generated navigation)
+# ├── intro.html
+# ├── advanced/
+# │   └── config.html
+# └── assets/
+```
+
+### Quiet build for CI/CD
+
+```bash
+renderkind docs/ --output site/ --quiet --force
+# No output on success (only errors)
+```
+
+### Strict mode with custom index name
+
+```bash
+renderkind docs/ --strict --index-name README.html
+# Requires frontmatter title/description in every file
+# Generates site/README.html instead of index.html
 ```
 
 ## Frontmatter
@@ -158,6 +279,51 @@ The default template (`templates/default_template.html`) includes:
 - **Zero external dependencies** – everything is local and offline
 
 You can override it with `--template` or replace the default file.
+
+## Output Paths and Assets
+
+When you run `renderkind`, the following happens automatically:
+
+1. Output directory is created (default: `dist/`)
+2. Assets (`css/`, `js/`, etc.) are copied to `dist/assets/`
+3. HTML files are generated with correct relative paths to assets
+
+### Single file mode
+
+```bash
+renderkind docs/intro.md --output site/
+```
+
+Output:
+```
+site/
+├── index.html              # Generated HTML
+└── assets/                 # Copied from source
+    ├── css/
+    └── js/
+```
+
+### Batch mode
+
+```bash
+renderkind docs/ --output site/
+```
+
+Output:
+```
+site/
+├── index.html              # Auto-generated navigation
+├── intro.html
+├── getting-started/
+│   └── install.html
+└── assets/                 # Shared across all HTML files
+    ├── css/
+    └── js/
+```
+
+Asset paths are automatically calculated for nested files:
+- `site/index.html` → `assets/css/styles.css`
+- `site/getting-started/install.html` → `../assets/css/styles.css`
 
 ## CSS and JavaScript
 
