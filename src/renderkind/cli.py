@@ -1,24 +1,66 @@
 #!/usr/bin/env python3
 """
-Generate a convenient-to-navigate, customizable, static HTML page from Markdown.
+RenderKind: Markdown to static HTML documentation site generator.
+
+Convert single markdown files or entire directories into styled, navigable
+HTML pages with automatic table of contents, index page generation, and
+responsive design.
 
 Usage:
-    renderkind INPUT [--output] [--template] [--force] [--strict]
+    renderkind INPUT [--output DIR] [--template FILE] [--force] [--strict]
+               [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
 
-Example:
-    renderkind \
-            input.md.md \
-            dist/index.html \
-            templates/default_template.html \
-            --force
+Examples:
+    # Single file mode (outputs to dist/index.html)
+    renderkind docs/intro.md
+
+    # Batch mode (process entire directory)
+    renderkind docs/
+
+    # Custom output directory
+    renderkind docs/ --output site/
+
+    # Force overwrite and clean output directory
+    renderkind docs/ --clean --force
+
+    # Suppress all non-error output (CI/CD friendly)
+    renderkind docs/ --quiet
+
+    # Disable index page generation
+    renderkind docs/ --no-index
+
+    # Custom index filename
+    renderkind docs/ --index-name README.html
+
+    # Process only top-level files (no recursion)
+    renderkind docs/ --no-recursive
+
+    # Require frontmatter title and description in every file
+    renderkind docs/ --strict
+
+    # Use custom HTML template
+    renderkind docs/ --template path/to/custom.html
+
+    # Show version
+    renderkind --version
 
 Dependencies:
-    pip install markdown beautifulsoup4 yaml
+    pip install markdown beautifulsoup4 pyyaml
 
 Output:
-    html file specified at path OUTPUT (only this file is generated)
+    Single file mode: Creates OUTPUT_DIR/index.html (default: dist/)
+    Batch mode: Creates OUTPUT_DIR/ with preserved directory structure,
+                index.html (auto-generated navigation), and assets/
 
-CSS/JS are static files you maintain separately in css/ and js/ directories.
+Features:
+    - YAML frontmatter for metadata (title, description)
+    - Build-time table of contents (h1-h4 headings)
+    - Automatic index page with directory tree (batch mode)
+    - Responsive default template (dark mode, collapsible TOC)
+    - Asset copying with correct relative paths at any depth
+    - Windows path backslash escaping for re.sub() safety
+
+For more information, see README.md and CHANGELOG.md.
 """
 
 import os
