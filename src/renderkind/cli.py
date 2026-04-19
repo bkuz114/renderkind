@@ -901,6 +901,180 @@ def build_file_mapping(
 
 
 # ============================================================================
+# INDEX PAGE GENERATION
+# ============================================================================
+
+
+def generate_index_page(
+    output_dir: Path,
+    file_mapping: Dict[Path, Path],
+    index_path: Path,
+    template_path: Path,
+    final_assets_dir: Path,
+    force: bool,
+) -> Path:
+    """
+    Generate an index page linking to all processed markdown files.
+
+    Builds a nested directory tree from the file mapping, extracts link text
+    from each markdown file (frontmatter title or filename), and renders an
+    HTML index page using the shared template.
+
+    Args:
+        output_dir: Base output directory (e.g., Path("dist/")).
+        file_mapping: Dictionary mapping source markdown files to their
+            output HTML paths. Typically from build_file_mapping().
+        index_path: Full path where index.html will be written.
+        template_path: Path to the HTML template file.
+        final_assets_dir: Path to assets directory in output
+            (e.g., Path("dist/assets/")).
+        force: If True, overwrite existing index.html.
+
+    Returns:
+        Path to the generated index.html file.
+
+    Example:
+        >>> generate_index_page(
+        ...     Path("dist/"),
+        ...     {Path("docs/intro.md"): Path("dist/intro.html")},
+        ...     Path("dist/index.html"),
+        ...     Path("templates/default.html"),
+        ...     Path("dist/assets/"),
+        ...     force=True
+        ...     )
+        PosixPath('dist/index.html')
+    """
+
+    # Build tree structure
+    tree = {}
+    for md_file, html_path in file_mapping.items():
+        # Get relative path from output_dir
+        rel_path = html_path.relative_to(output_dir)
+        parts = list(rel_path.parent.parts)
+        filename = rel_path.name
+
+        # Get link text
+        link_text = _get_link_text(md_file)
+
+        # Navigate/create tree
+        current = tree
+        for part in parts:
+            if part not in current:
+                current[part] = {}
+            current = current[part]
+        current[filename] = link_text
+
+    # Render HTML
+    index_content = _render_tree(tree, output_dir)
+
+    # Calculate asset path prefix
+    asset_path_prefix = get_asset_path_prefix(index_path, final_assets_dir)
+
+    # Reuse template
+    final_html = template_html(
+        template_path,
+        "Documentation Index",
+        "Index of generated documentation",
+        index_content,
+        "",  # Empty TOC
+        "",
+        asset_path_prefix,
+    )
+
+    write_html_file(final_html, index_path, force)
+
+    return index_path
+
+
+def _get_link_text(md_file: Path) -> str:
+    """
+    Extract display title from markdown file for index page links.
+
+    Priority:
+        1. 'title' field from YAML frontmatter (if present)
+        2. Filename stem (e.g., "getting-started" from "getting-started.md")
+
+    Args:
+        md_file: Path to markdown file.
+
+    Returns:
+        Display title string.
+
+    Example:
+        >>> _get_link_text(Path("docs/intro.md"))
+        'Getting Started'  # from frontmatter title: "Getting Started"
+        >>> _get_link_text(Path("docs/config.md"))
+        'config'  # no frontmatter, falls back to filename
+    """
+    raw = read_markdown_file(md_file)
+    metadata, _ = parse_frontmatter(raw)
+    return metadata.get("title", md_file.stem)
+
+
+def _render_tree(tree: dict, base_path: Path = Path("")) -> str:
+    """
+    Recursively render a directory tree as nested HTML <ul> elements.
+
+    This function traverses the tree dictionary and generates semantic HTML
+    with proper indentation. Directories are rendered as <li> with a folder
+    span, containing a nested <ul> of their children. Files are rendered as
+    <li> with an <a> link.
+
+    For Windows paths, backslashes in href attributes are doubled to prevent
+    them from being interpreted as escape sequences by re.sub() during
+    template rendering.
+
+    Args:
+        tree: Nested dictionary where:
+            - Keys are directory names or filenames
+            - Values are either:
+                - Another dict (for directories)
+                - A string (link text for files)
+        base_path: Path object for building hrefs (used recursively).
+            Defaults to empty Path, which resolves to current directory.
+
+    Returns:
+        HTML string with nested <ul> structure, with href backslashes escaped.
+
+    Example:
+        >>> tree = {
+        ...     "getting-started": {
+        ...         "install.html": "Installation Guide",
+        ...         "quickstart.html": "Quick Start"
+        ...     },
+        ...     "intro.html": "Introduction"
+        ... }
+        >>> _render_tree(tree)
+        '<ul class="index-tree"><li><span class="index-folder">getting-started/</span><ul><li><a href="getting-started/install.html">Installation Guide</a></li><li><a href="getting-started/quickstart.html">Quick Start</a></li></ul></li><li><a href="intro.html">Introduction</a></li></ul>'
+
+    Note:
+        This function is recursive. For large directory trees (1000+ files),
+        recursion depth may be a concern, but typical documentation sites
+        have shallow nesting (2-4 levels).
+    """
+    if not tree:
+        return ""
+
+    html = '<ul class="index-tree">'
+
+    for key, value in sorted(tree.items()):
+        if isinstance(value, dict):
+            # Directory: render folder name, then recurse into children
+            html += f'  <li><span class="index-folder">{key}/</span>'
+            html += _render_tree(value, base_path / key)
+            html += "  </li>"
+        else:
+            # File: render link with href from base_path and key
+            href = str(base_path / key)
+            # escape backslashes in href for Windows paths
+            href_escaped = href.replace("\\", "\\\\")
+            html += f'  <li><a href="{href_escaped}">{value}</a></li>'
+
+    html += "</ul>"
+    return html
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -964,6 +1138,17 @@ def main():
         help="Process only top-level directory (do not recurse into subdirectories)",
     )
     parser.add_argument(
+        "--no-index",
+        action="store_true",
+        help="Skip index page generation in batch mode",
+    )
+    parser.add_argument(
+        "--index-name",
+        type=str,
+        default="index.html",
+        help="Custom filename for index page (default: index.html)",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress all non-error output (useful for scripting)",
@@ -1009,6 +1194,20 @@ def main():
             args.force,
             args.strict,
         )
+
+        # Generate index page (batch mode only, not --no-index)
+        if not args.no_index and input_path.is_dir():
+            index_path = output_path / args.index_name
+            generate_index_page(
+                output_path,
+                md_files_mapping,
+                index_path,
+                template_path,
+                final_assets_dir,
+                args.force,
+            )
+            logger.info(f"📑 Generated index: {index_path}")
+
     except FileNotFoundError as e:
         logger.error(f"\n❌ Error:\n{e}\n")
         sys.exit(1)
