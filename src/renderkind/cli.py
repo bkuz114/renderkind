@@ -402,7 +402,7 @@ def extract_title_from_markdown(markdown: str) -> str:
     return fallback
 
 
-def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
+def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, str]:
     """
     Render TOC entries as nested HTML list.
 
@@ -420,8 +420,6 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
         This function uses recursion to handle nested heading levels.
         h1 is rendered as a special "Back to top" link.
     """
-    if not toc_entries:
-        return ""
 
     # Filter to only include entries at or below max depth
     entries = [e for e in toc_entries if e["level"] <= TOC_MAX_DEPTH]
