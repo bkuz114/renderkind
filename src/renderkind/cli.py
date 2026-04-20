@@ -969,6 +969,7 @@ def generate_index_page(
         PosixPath('dist/index.html')
     """
 
+    logger.info(f"\n📑 Create index page linking to all generated docs...")
     # Build tree structure
     tree = {}
     for md_file, html_path in file_mapping.items():
@@ -1223,7 +1224,6 @@ def main():
                 final_assets_dir,
                 args.force,
             )
-            logger.info(f"📑 Generated index: {index_path}")
 
     except FileNotFoundError as e:
         logger.error(f"\n❌ Error:\n{e}\n")
