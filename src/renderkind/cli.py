@@ -390,7 +390,7 @@ def extract_title_from_markdown(markdown: str) -> str:
         Given first line '# Cleaning Chemistry'
         Returns 'Cleaning Chemistry'
     """
-    fallback = "Untitle Document"
+    fallback = "Untitled Document"
     if not markdown:
         return fallback
 
