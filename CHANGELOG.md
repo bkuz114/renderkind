@@ -10,6 +10,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - (Placeholder for future changes)
 
+## [0.3.1] - 2026-04-20
+
+### Fixed
+
+- **Windows path escaping in template rendering**
+  - Fixed crash when template values contained Windows filepaths (e.g., `C:\Users\Ivan\file.txt`)
+  - Error manifested as: `re.error: bad escape \U at position x`
+  - Root cause: `re.subn()` (from vendored `template_utils`) interpreted backslashes in replacement strings as regex escape sequences
+  - Solution: Updated vendored `template_utils` to v0.3.0 (two-pass design: regex for pattern matching, `str.replace` for literal insertion)
+    see:
+	https://github.com/bkuz114/template_utils/releases/tag/v0.3.0
+    https://github.com/bkuz114/template_utils/commit/1e21de59bd9ed8e769818dd2c8a40d1393f1f008
+  - To support the updated vendored `template_utils`:
+    - Removed `href_escaped` workaround from `_render_tree()` (no longer needed)
+    - Removed obsolete comments about backslash escaping
+  - Commit: 30ef4e7 
+
+- **Typo in fallback title when there is no `title` variable in YAML frontmatter**
+  - When no 'title' variable in YAML frontmatter (or frontmatter missing), and title can't be extracted from the first h1, falls back to a generic title.
+  - That title had typo: "Untitle Document" vs. "Untitled Document"
+  - Commit: 20f7d31 
+
+- **TOC generation crash for documents with no headings**
+  - Fixed crash when processing markdown files that contain no headings (no h1-h4)
+  - Previously, processing a markdown file with no headings (e.g., plain text or lists only) would crash with:
+    `ValueError: not enough values to unpack (expected 2, got 0)`
+  - Root cause: `render_toc()` returned an empty string early when `toc_entries` was empty, but caller (`convert_markdown_to_html`) expected `Tuple[str, str]` (which is what is returned in the normal case).
+  - Solution: removed the early return. The function now runs to completion, returning an empty TOC (`<ul class="toc-list"></ul>`) and the default `"#top"` anchor.
+  - Documents with headings are unaffected; documents without headings now build successfully.
+  - Commit: 4e7054e 
+
+- **Header title link for documents with no headings**
+  - Previously, the site title link in the fixed header used the first h1's ID as its anchor (e.g., `href="#cleaning-chemistry"`)
+  - This caused broken links (no action on click) when processing markdown files without any headings
+  - Fixed by replacing dynamic anchor with static `#top` anchor and adding `id="top"` to the `<html>` element
+  - The header link now always scrolls to the top of the page, regardless of document structure
+  - Commit: 0f3699f 
+
+### Changed
+
+- **Default log level changed from WARNING to ERROR**
+  - Warnings (e.g., missing frontmatter description) are now suppressed by default
+  - Use `--quiet` to suppress all non-error output
+  - Use `--verbose` (if added in future) to see warnings
+  - Commit: 7783eb8 
+
+- **Remove redundant "Generated" message after index page generation**
+  - Removes redundant "Generated index page" message after index page generation in batch mode (similar message already being printed any time a new file is written)
+  - Adds instead a "Create index page" message before index page generation, to give user visual separation between regular file generation and index file generation
+  - Commit: cd57695
+
+### Dependencies
+
+- Updated vendored `template_utils` from v0.2.0 → v0.3.0
+  see:
+  https://github.com/bkuz114/template_utils/releases/tag/v0.3.0
+  https://github.com/bkuz114/template_utils/commit/1e21de59bd9ed8e769818dd2c8a40d1393f1f008
+
+### Migration Notes
+
+No breaking changes. Users experiencing Windows path crashes should upgrade to v0.3.1.
+
 ## [0.3.0] - 2026-04-19
 
 ### Added
