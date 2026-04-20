@@ -137,7 +137,7 @@ MD_EXTENSIONS = [
 # Setup basic logging (called once in main)
 def setup_logging(quiet: bool = False):
     """Configure logging based on quiet flag."""
-    level = logging.WARNING if quiet else logging.INFO
+    level = logging.ERROR if quiet else logging.INFO
     logging.basicConfig(
         level=level,
         format="%(message)s",  # Just the message, no extra prefix
