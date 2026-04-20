@@ -58,7 +58,6 @@ Features:
     - Automatic index page with directory tree (batch mode)
     - Responsive default template (dark mode, collapsible TOC)
     - Asset copying with correct relative paths at any depth
-    - Windows path backslash escaping for re.sub() safety
 
 For more information, see README.md and CHANGELOG.md.
 """
@@ -114,7 +113,6 @@ if not PACKAGE_ROOT.exists():
 # Default paths relative to package root
 DEFAULT_TEMPLATE = PACKAGE_ROOT / "templates" / "default_template.html"
 DEFAULT_ASSETS = PACKAGE_ROOT / "assets"
-
 
 # ============================================================================
 # CONFIGURATION
@@ -1062,10 +1060,6 @@ def _render_tree(tree: dict, base_path: Path = Path("")) -> str:
     span, containing a nested <ul> of their children. Files are rendered as
     <li> with an <a> link.
 
-    For Windows paths, backslashes in href attributes are doubled to prevent
-    them from being interpreted as escape sequences by re.sub() during
-    template rendering.
-
     Args:
         tree: Nested dictionary where:
             - Keys are directory names or filenames
@@ -1108,9 +1102,7 @@ def _render_tree(tree: dict, base_path: Path = Path("")) -> str:
         else:
             # File: render link with href from base_path and key
             href = str(base_path / key)
-            # escape backslashes in href for Windows paths
-            href_escaped = href.replace("\\", "\\\\")
-            html += f'  <li><a href="{href_escaped}">{value}</a></li>'
+            html += f'  <li><a href="{href}">{value}</a></li>'
 
     html += "</ul>"
     return html

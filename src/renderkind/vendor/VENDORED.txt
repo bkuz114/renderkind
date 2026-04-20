@@ -3,7 +3,9 @@
 # See CONTRIBUTING.md for vendoring policy
 
 ## submodule1 (https://github.com/bkuz114/template_utils)
-- Version: 0.2.0 (commit abc123def456)
+- Version: 0.3.0 (commit 1e21de5)
+  https://github.com/bkuz114/template_utils/releases/tag/v0.3.0
+  https://github.com/bkuz114/template_utils/commit/1e21de59bd9ed8e769818dd2c8a40d1393f1f008
 - Original license: MIT
 - Files vendored:
   - template_utils.py → submodule1_parser.py

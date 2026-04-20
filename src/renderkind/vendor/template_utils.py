@@ -65,12 +65,27 @@ def find_placeholders(template: str) -> set[str]:
 
 def _replace_placeholder(text: str, key: str, value: str) -> tuple[str, bool]:
     """
-    Replace {{key}} (with optional whitespace padding) with value.
+    Replace {{key}} (with optional whitespace padding) with literal value.
+
+    Uses two passes:
+        1. Regex normalizes to remove whitespace padding around keys (i.e. "{{ key }}" -> "{{key}}")
+        2. str.replace inserts the literal value in the normalized value (no regex interpretation)
+
+    Why str.replace instead of re.sub?
+        re.sub would interpret backslashes and backreferences in `value` as
+        replacement directives, causing errors for Windows paths ("C:\\Users")
+        and corrupting strings containing "\\1", "\\g", etc. str.replace treats
+        `value` as a literal string with no special interpretation.
+
+    This two-pass design decouples flexible matching (regex) from literal
+    insertion (str.replace), avoiding all issues with backslashes,
+    backreferences, or other regex metacharacters in the replacement string.
 
     Args:
         text: String to perform replacement on
         key: Placeholder name (without braces)
-        value: Replacement string
+        value: Replacement string - inserted literally. Can contain any
+               characters (backslashes, braces, etc.)
 
     Returns:
         Tuple of (modified_text, replacement_occurred)
@@ -89,13 +104,17 @@ def _replace_placeholder(text: str, key: str, value: str) -> tuple[str, bool]:
         ('Hi Alice!', True)
         >>> _replace_placeholder("{{a}} {{ a }} {{  a  }}", "a", "b")
         ('b b b', True)
+        >>> _replace_placeholder("Path: {{ path }}", "path", r"C:\\Users\\Name")
+        ('Path: C:\\Users\\Name', True)
         >>> _replace_placeholder("No match here", "name", "Alice")
         ('No match here', False)
     """
+    # Step 1: Normalize placeholder to remove whitespace padding (e.g., "{{ key }}" -> "{{key}}")
+    #
     # Pattern explanation:
     # {{        : literal opening double braces
     # \s*       : zero or more whitespace characters (space/tab)
-    # {key}     : the placeholder name (escaped to handle regex special chars)
+    # (key)     : capture group for placeholde name (escaped to handle regex special chars)
     # \s*       : zero or more whitespace characters
     # }}        : literal closing double braces
     #
@@ -103,16 +122,27 @@ def _replace_placeholder(text: str, key: str, value: str) -> tuple[str, bool]:
     # 1. re.escape(key) ensures that keys containing regex metacharacters
     #    (e.g., "a.b", "a+b", "a*b") are treated as literals, not patterns.
     # 2. r"\{\{" : \ escapes { chars; r allows \ chars to be interpreted as literal
-    pattern = re.compile(r"\{\{\s*" + re.escape(key) + r"\s*\}\}")
+    pattern = re.compile(r"\{\{\s*(" + re.escape(key) + r")\s*\}\}")
+    normalized_text = pattern.sub(r"{{\1}}", text)
 
-    # subn returns a tuple: (new_string, number_of_replacements_made)
-    # It replaces all non-overlapping occurrences of the pattern with the
-    # replacement string, processing the input in a single pass.
-    new_text, replacement_count = pattern.subn(value, text)
+    # Step 2: Check whether the normalized text contains the placeholder we're about to replace.
+    #
+    # This flag tells the caller (render_template) whether any replacement work was attempted,
+    # which is essential for cycle detection. Simply comparing input vs. output strings is
+    # insufficient because a placeholder could be replaced with an identical value
+    # (e.g., "{{name}}" -> "{{name}}"), resulting in no net change despite work being done.
+    # Without this flag, that scenario would be mistaken for a stable state instead of a cycle.
+    #
+    # The four braces: f"{{{{{key}}}}}" produces literal {{key}}
+    # This is because {{ escapes to a single { in f-strings
+    placeholder = f"{{{{{key}}}}}"  # "{{key}}"
+    has_placeholder = placeholder in normalized_text
 
-    # replacement_count > 0 indicates whether any placeholder was actually replaced.
-    # This allows the caller (render_template) to detect cycles and stability.
-    return new_text, replacement_count > 0
+    # Step 3: Replace placeholder with literal value (no regex interpretation)
+    # (see function documentation for why replace is used rather than re.sub)
+    new_text = normalized_text.replace(placeholder, value)
+
+    return new_text, has_placeholder
 
 
 def render_template(
