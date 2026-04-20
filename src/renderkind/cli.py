@@ -402,7 +402,7 @@ def extract_title_from_markdown(markdown: str) -> str:
     return fallback
 
 
-def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, str]:
+def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
     """
     Render TOC entries as nested HTML list.
 
@@ -411,10 +411,7 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, st
         current_depth: Starting depth (default 1, for h1)
 
     Returns:
-        Tuple of (
-            HTML string of nested <ul> and <li> elements,
-            string page anchor based on h1; defaults to "#top" if no h1
-        )
+        HTML string of nested <ul> and <li> elements
 
     Note:
         This function uses recursion to handle nested heading levels.
@@ -424,9 +421,6 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, st
     # Filter to only include entries at or below max depth
     entries = [e for e in toc_entries if e["level"] <= TOC_MAX_DEPTH]
 
-    # anchor to top of page (default to #top)
-    top_anchor = "#top"
-
     html = '<ul class="toc-list">\n'
 
     for entry in entries:
@@ -435,11 +429,8 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, st
         anchor_id = entry["id"]
 
         if level == 1:
-            # Special case: h1 as "Back to top"
-            top_anchor = f"#{anchor_id}"
-            html += (
-                f'  <li><a href="{top_anchor}" class="toc-level-h1">↑ {text}</a></li>\n'
-            )
+            # Back to top link (uses #top anchor from <html id="top">)
+            html += f'  <li><a href="#top" class="toc-level-h1">↑ {text}</a></li>\n'
         else:
             level_class = f"toc-level-h{level}"
             html += (
@@ -447,10 +438,10 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> Tuple[str, st
             )
 
     html += "</ul>\n"
-    return html, top_anchor
+    return html
 
 
-def convert_markdown_to_html(md_content: str) -> Tuple[str, str, str]:
+def convert_markdown_to_html(md_content: str) -> Tuple[str, str]:
     """
     Convert Markdown file to HTML using python-markdown.
 
@@ -461,7 +452,6 @@ def convert_markdown_to_html(md_content: str) -> Tuple[str, str, str]:
         Tuple: (
             HTML string with heading IDs added,
             HTML TOC string,
-            string of anchor to top of page i.e. "#top"
         )
     """
 
@@ -476,9 +466,9 @@ def convert_markdown_to_html(md_content: str) -> Tuple[str, str, str]:
     soup_with_ids = BeautifulSoup(html_with_ids, "html.parser")
 
     # Generate TOC HTML from entries
-    toc_html, top_anchor = render_toc(toc_entries)
+    toc_html = render_toc(toc_entries)
 
-    return str(soup_with_ids), toc_html, top_anchor
+    return str(soup_with_ids), toc_html
 
 
 def template_html(
@@ -487,7 +477,6 @@ def template_html(
     description: str,
     content: str,
     toc_html: str,
-    top_anchor: str,
     asset_path_prefix: str,
 ) -> str:
     """
@@ -499,7 +488,6 @@ def template_html(
         description: document description to embed at {{description}} placeholder
         content: string of content to embed at {{content}} placeholder
         toc: string of content to embed at {{toc}} placeholder
-        top_anchor: string (an anchor to top of page) to embed at {{anchor_top}} placeholder
 
     Returns:
         Content of template file with embedded markdown content and title.
@@ -525,7 +513,6 @@ def template_html(
         "title": title,
         "description": description,
         "toc": toc_html,
-        "anchor-top": top_anchor,
         "asset_path_prefix": asset_path_prefix,
     }
 
@@ -760,7 +747,7 @@ def process_single_file(
     )
 
     # Convert markdown to HTML
-    html_content, toc, top_anchor = convert_markdown_to_html(markdown_content)
+    html_content, toc = convert_markdown_to_html(markdown_content)
 
     # Calculate asset path prefix
     asset_path_prefix = get_asset_path_prefix(output_path, final_assets_dir)
@@ -772,7 +759,6 @@ def process_single_file(
         description,
         html_content,
         toc,
-        top_anchor,
         asset_path_prefix,
     )
 
@@ -1015,7 +1001,6 @@ def generate_index_page(
         "Index of generated documentation",
         index_content,
         "",  # Empty TOC
-        "",
         asset_path_prefix,
     )
 
