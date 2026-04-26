@@ -473,9 +473,8 @@ def convert_markdown_to_html(md_content: str) -> Tuple[str, str]:
 
 def template_html(
     template_path: Path,
-    title: str,
-    description: str,
     content: str,
+    frontmatter: Dict[str, str],
     toc_html: str,
     asset_path_prefix: str,
 ) -> str:
@@ -484,9 +483,11 @@ def template_html(
 
     Args:
         template_path: Path to the template .html file.
-        title: document title to embed at {{title}} placeholder
-        description: document description to embed at {{description}} placeholder
         content: string of content to embed at {{content}} placeholder
+        frontmatter: dictionary of the key/value pairs extracted from YAML frontmatter.
+            Used to embed data to dcoument placeholders. Example:
+            frontmatter = {"key1": "value1", "key2": "value2"},
+            "value1" will be embedded at {{key1}} placeholder, "value2" at {{key2}}, etc.
         toc: string of content to embed at {{toc}} placeholder
 
     Returns:
@@ -510,11 +511,12 @@ def template_html(
     # Build substitutions
     substitutions = {
         "content": content,
-        "title": title,
-        "description": description,
         "toc": toc_html,
         "asset_path_prefix": asset_path_prefix,
     }
+
+    # merge frontmatter data
+    substitutions |= frontmatter
 
     # Generate warning comment referencing the source template
     warning_msg = f"THIS FILE IS GENERATED. DO NOT EDIT DIRECTLY."
@@ -742,9 +744,14 @@ def process_single_file(
     # Read and parse
     raw_content = read_markdown_file(input_path)
     metadata, markdown_content = parse_frontmatter(raw_content)
+    # get document title and description from YAML frontmatter
+    # or fallback value (if not present in frontmatter)
     title, description = extract_data_from_frontmatter(
         metadata, markdown_content, strict
     )
+    # merge determined title and description into metadata for HTML formatting
+    metadata["title"] = title
+    metadata["description"] = description
 
     # Convert markdown to HTML
     html_content, toc = convert_markdown_to_html(markdown_content)
@@ -755,9 +762,8 @@ def process_single_file(
     # Render template
     final_html = template_html(
         template_path,
-        title,
-        description,
         html_content,
+        metadata,
         toc,
         asset_path_prefix,
     )
@@ -995,12 +1001,17 @@ def generate_index_page(
     # Calculate asset path prefix
     asset_path_prefix = get_asset_path_prefix(index_path, final_assets_dir)
 
+    # Create dummy YAML frontmatter for templating
+    metadata = {
+        "title": "Documentation Index",
+        "description": "Index of generated documentation",
+    }
+
     # Reuse template
     final_html = template_html(
         template_path,
-        "Documentation Index",
-        "Index of generated documentation",
         index_content,
+        metadata,
         "",  # Empty TOC
         asset_path_prefix,
     )
