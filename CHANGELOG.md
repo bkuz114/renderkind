@@ -10,6 +10,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - (Placeholder for future changes)
 
+## [0.4.0] - 2026-04-26
+
+### Added
+
+- **Arbitrary YAML frontmatter fields**
+  - Any frontmatter field (e.g., `author:`, `date:`, `version:`) is now available as `{{ field }}` in templates
+  - No code changes needed to support new frontmatter fields
+  - `title:` and `description:` continue to work with fallback logic
+  - Commit caca492 
+
+- **Wiki mode support for multiple h1 documents**
+  - Documents with multiple `#` headings now render correctly as wiki-style notes
+  - Header title uses filename (or frontmatter `title:`) instead of first h1
+  - TOC no longer displays up-arrow "Back to top" on every h1 (cleaner navigation)
+  - Mode selection with priority: CLI `--mode` → frontmatter `type:` → auto-detection
+  - Commit 30cc272
+
+- **`--mode` CLI flag**
+  - `--mode document` – Force document mode (single h1 as title, up-arrow on first h1)
+  - `--mode wiki` – Force wiki mode (filename as title, no up-arrows)
+  - `--mode auto` – Auto-detect based on h1 count (default)
+  - Commit 30cc272
+
+- **Frontmatter `type:` field**
+  - Special YAML frontmatter param to force a particular document type when constructing TOC (github vs. wiki style)
+  - `type: github` – Forces github-style mode (First h1 found links to #top in TOC; if no 'title' field in YAML to specify document title, will use first h1)
+  - `type: wiki` – Forces wiki-style mode (General "Start" anchor to #top; if no 'title' field in YAML to specify document title, use filename)
+  - Useful when frontmatter is preferred over auto-detection
+  - Commit 30cc272
+
+- **--version flag**
+  - Prints current renderkind version and quits.
+  - Commit 51d0e7b 
+
+### Changed
+
+- `template_html()` now accepts a `frontmatter: Dict[str, str]` parameter instead of individual `title` and `description` arguments
+- All frontmatter fields are merged into template substitutions (reserved keys: `content`, `toc`, `asset_path_prefix`)
+
+### Fixed
+
+- No new fixes in this release (existing v0.3.1 fixes preserved)
+
+### Migration Notes
+
+Upgrading from v0.3.1 to v0.4.0:
+- build tool bin/build.sh must be updated else will fail due to rename of `examples/example.md` -> `examples/example_github.md`
+- Existing single-h1 documents continue to work as before (document mode)
+- Custom templates that relied on only `{{ title }}` and `{{ description }}` still work
+- Templates with additional frontmatter fields will now receive those values
+
+### Example: Wiki-style note with frontmatter
+
+Input (`notes.md`):
+```markdown
+---
+title: "My Personal Notes"
+type: wiki
+---
+
+# Python Tips
+## List comprehensions
+
+# Git Commands
+## Stashing changes
+```
+
+Output:
+
+- Header title: "My Personal Notes" (from frontmatter)
+- TOC: Python Tips, Git Commands (no up-arrows)
+
 ## [0.3.1] - 2026-04-20
 
 ### Fixed
@@ -241,3 +313,4 @@ No breaking changes. Users experiencing Windows path crashes should upgrade to v
 ---
 
 [0.1.0]: https://github.com/bkuz114/md2html/releases/tag/v0.1.0
+[0.4.0]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.0
