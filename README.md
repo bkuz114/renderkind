@@ -31,6 +31,8 @@ That's it. No submodules, no manual dependency installation, no external CDNs. J
 - **YAML frontmatter** – Title, description, and extensible metadata
 - **Build-time TOC** – Table of contents generated from headings (h1-h4)
 - **Automatic index page** – Navigable directory tree for batch output
+- **Wiki mode support** – Perfect for personal notes and knowledge bases with multiple # headings
+- **Arbitrary frontmatter** – Any YAML field becomes a {{ placeholder }} in templates
 - **Responsive default template** – Fixed header, collapsible TOC panel, dark mode support
 - **Smart asset handling** – Assets copied once, paths resolved at any depth
 - **Customizable** – Bring your own templates, CSS, and JavaScript
@@ -62,7 +64,7 @@ pip install -e .
 ## Usage
 
 ```bash
-renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
+renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--mode] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
 ```
 
 ### Basic Usage
@@ -123,6 +125,23 @@ Use a custom index filename:
 
 ```bash
 renderkind docs/ --index-name README.html
+```
+
+### Wiki mode for personal notes
+
+```bash
+# Auto-detect (multiple h1s → wiki mode)
+renderkind notes/
+```
+
+```bash
+# Force wiki mode for personal notes
+renderkind notes/ --mode wiki
+```
+
+```bash
+# Force github-style mode
+renderkind notes/ --mode github
 ```
 
 ### File Discovery
@@ -230,6 +249,10 @@ Add YAML frontmatter at the top of your markdown file:
 ---
 title: "My Document Title"
 description: "A clear description of this document's content"
+type: github  # or "wiki"
+author: "Your Name"
+date: "2024-01-15"
+version: "1.0.0"
 ---
 
 # Optional: Can match title or be different
@@ -243,6 +266,7 @@ Document content...
 |-------|-----------|---------|---------------------|
 | `title` | No (but recommended) | Document title for `<title>` tag and header | First `# h1` in markdown (with warning) |
 | `description` | No | Meta description for SEO | Empty string (with info message) |
+| `type` | Document mode (`document` or `wiki`) | Auto-detection (single h1 → document, multiple h1s → wiki) |
 
 ### Extending frontmatter
 
@@ -259,6 +283,23 @@ version: "1.0.0"
 ```
 
 Then access them in your template: `{{author}}`, `{{date}}`, etc.
+
+## Document Modes
+
+Each .md has a "document mode" indicating how TOC should styled, and how the document title is found -- either "github style" (one `h1` as the document title) or "wiki style" (mutliple `h1`s, none of them being the ttile). Document mode is determined based on how many `h1` headers are found in the markdown file, but can be forced by either YAML frontmatter (`type` field), or cli arg `--mode`.
+
+### Overview
+
+| Mode | Title source | TOC behavior | Best for |
+|------|--------------|--------------|----------|
+| **Github** | First `# h1` (or frontmatter) | Up-arrow on first h1 only | Blog posts, documentation, articles |
+| **Wiki** | Filename (or frontmatter) | No up-arrows on any h1 | Personal notes, wikis, knowledge bases |
+
+### Mode Selection (Priority Order)
+
+1. CLI flag: `--mode github|wiki|auto`
+2. Frontmatter `type:` field
+3. Auto-detection based on h1 count
 
 ## Templates
 
@@ -371,6 +412,15 @@ renderkind examples/with-frontmatter.md --template my-template.html
 
 # Full build to dist directory
 renderkind docs/index.md --output dist/ --strict
+
+# Auto-detecting document type (multiple h1s → wiki mode)
+renderkind notes/
+
+# Force wiki mode
+renderkind notes/ --mode wiki
+
+# Force github mode
+renderkind notes/ --mode github
 ```
 
 See the `examples/` directory for complete working examples.
