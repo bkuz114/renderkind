@@ -75,13 +75,14 @@ setup_venv() {
     source "./${venv}/Scripts/activate"
     
     # Upgrade pip
-    pip install --upgrade pip
+    # Use python -m pip - works on all platforms and prevents pip self-modification issues
+    python -m pip install --upgrade pip
     
     # Install runtime requirements if changed
     if [[ -n "${requirements}" && -f "${requirements}" && "${requirements}" -nt "${venv}/.requirements_installed" ]]; then
         echo "Installing runtime requirements..."
-        echo "pip install -r ${requirements}"
-        pip install -r "${requirements}"
+        echo "python -m pip install -r ${requirements}"
+        python -m pip install -r "${requirements}"
     fi
     
     # Mark as installed
@@ -264,7 +265,7 @@ echo "##########################################################"
 echo "## 7. Install wheel file from build                      #"
 echo "##########################################################"
 echo ""
-pip install "${WHEEL_FILE}"
+python -m pip install "${WHEEL_FILE}"
 
 # Test the installed package
 echo ""
