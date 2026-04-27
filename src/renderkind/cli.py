@@ -9,6 +9,7 @@ responsive design.
 Usage:
     renderkind INPUT [--output DIR] [--template FILE] [--force] [--strict]
                [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
+               [--mode MODE]
 
 Examples:
     # Single file mode (outputs to dist/index.html)
@@ -40,6 +41,17 @@ Examples:
 
     # Use custom HTML template
     renderkind docs/ --template path/to/custom.html
+
+    # Force document to be "github" style (first h1 becomes doc title
+    # if no 'title' key in YAML frontmatter. h1 in TOC links to #top)
+    renderkind example.md --type github
+
+    # Force docment to be "wiki" style (document title only comes from
+    # YAML frontmatter, and if none, uses filename. TOC styled normally)
+    renderkind example.md --type wiki
+
+    # Force all documents to be wiki style
+    renderkind docs/ --type wiki
 
     # Show version
     renderkind --version
@@ -129,6 +141,9 @@ MD_EXTENSIONS = [
     "smarty",
 ]
 
+# document mode mapping
+MODE_MAPPING = {"auto": 0, "wiki": 1, "github": 2}
+
 # ============================================================================
 # LOGGING
 # ============================================================================
@@ -217,6 +232,52 @@ def read_markdown_file(markdown_path: Path) -> str:
         return f.read()
 
 
+# ============================================================================
+# MARKDOWN + YAML FRONTMATTER PROCESSING
+# ============================================================================
+
+
+def resolve_document_mode(
+    frontmatter: Dict, cli_mode: int, markdown_content: str
+) -> int:
+    """
+    Determine "document mode": i.e. if it's a wiki-style document with
+    any number of h1s or a github-style document with a single h1 determining
+    the ttiel). Determined based on following priority:
+        1. CLI flag (--mode)
+        2. 'type' field in YAML frontmatter
+        3. Auto-detection (counts h1 headings: 1 h1 = github style md, > 1 h1 = wikistyle md)
+
+    Args:
+        frontmatter: dictionary of YAML key/values
+        cli_mode: integer representation of user supplied --mode using MODE_MAPPING
+            (i.e. --mode "auto" : 0, --mode "wiki": 1, --mode "github"  : 2)
+        markdown: string content of an .md file
+
+    Returns:
+        int representating determined mode:
+        - 1 for wiki documents (multiple h1s or --mode "wiki")
+        - 2 for regular documents (single h1 or --mode "github")
+    """
+    # CLI takes precedence
+    if cli_mode != 0:
+        return cli_mode
+
+    # Frontmatter override
+    if "type" in frontmatter:
+        frontmatter_type = frontmatter["type"].lower()
+        # ensure in mode mapping
+        if frontmatter_type not in MODE_MAPPING.keys():
+            raise ValueError(
+                f"'type' key in YAML frontmatter does not specify a valid document type.\n\tValid: {', '.join(list(MODE_MAPPING.keys()))}\n\tGiven: {frontmatter_type}"
+            )
+        return MODE_MAPPING[frontmatter_type]
+
+    # Auto-detect based on h1 count
+    h1_count = count_h1_headings(markdown_content)
+    return 2 if h1_count == 1 else 1
+
+
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """
     Parse YAML frontmatter from markdown content.
@@ -271,68 +332,6 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     return metadata, rest_content
 
 
-def extract_data_from_frontmatter(
-    metadata: dict, md_content: str, strict: bool
-) -> Tuple[str, str]:
-    """
-    Extracts title and description values from parsed YAML frontmatter.
-
-    Args:
-        metadata: dict of key/values extracted from yaml markdown (see parse_frontmatter)
-        md_content: raw markdown from markdown file (for logging only)
-        strict: boolean that requires keys to exist in metadata else throws ValueError
-
-    Returns:
-        Tuple (
-            extracted title [falls back to first h1, then "Untitled Document"],
-            extracted description [falls back to nothing]
-        )
-
-    Raises:
-        ValueError: If strict and metadata is None (means there was no metadata found)
-        ValueError: If strict and no title in metadata
-        ValueError: If strict and no description in metadata
-    """
-
-    # Strict validation
-    if strict and not metadata:
-        raise ValueError("--strict: No frontmatter found in markdown file")
-
-    # Extract or validate title
-    title = metadata.get("title")
-    if not title:
-        if strict:
-            raise ValueError("--strict: 'title' field required in frontmatter")
-        else:
-            # Extract title from markdown as fallback
-            title = extract_title_from_markdown(md_content)
-            if title:
-                logger.warning(f"⚠️  Warning: No 'title' in frontmatter.")
-                logger.warning(f'    Using first h1 as title: "{title}"')
-                logger.warning(f"    This fallback will be deprecated in v2.0.")
-                logger.warning(f'    Add frontmatter: title: "{title}"')
-            else:
-                title = "Untitled Document"
-                logger.warning(
-                    f"⚠️  Warning: No 'title' in frontmatter and no h1 found."
-                )
-                logger.warning(f'    Using fallback: "{title}"')
-                logger.warning(f'    Add frontmatter: title: "{title}"')
-
-    # Extract description
-    description = metadata.get("description", "")
-    if not description:
-        if strict:
-            raise ValueError("--strict: 'description' field required in frontmatter")
-        else:
-            logger.warning(f"ℹ️  Info: No 'description' in frontmatter.")
-            logger.warning(
-                f"    <meta name='description'> will be empty. SEO may be affected."
-            )
-
-    return title, description
-
-
 def extract_headings_and_add_ids(
     html_content: str, max_depth: int = 4
 ) -> Tuple[str, List[Dict]]:
@@ -376,12 +375,23 @@ def extract_headings_and_add_ids(
     return str(soup), toc_entries
 
 
-def extract_title_from_markdown(markdown: str) -> str:
+def extract_title(
+    frontmatter: Dict, markdown_content: str, mode: int, file_path: Path, strict: bool
+) -> str:
     """
-    Extract the first h1 from markdown file.
+    Extract document title based on mode.
+
+    1 (Wiki mode): frontmatter 'title' → filename → fallback
+    2 (Github mode): YAML frontmatter 'title' → first h1 → fallback
 
     Args:
+        frontmatter: dictionary of the key/value pairs extracted from YAML frontmatter.
         markdown: string content of an .md file
+        mode: int indicating how TOC should be handled.
+            Options: 1: (github style), 2: (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top
+            - Wiki mode: All h1s as normal headings. Back to top link before all
+        strict: If True, require 'title' frontmatter.
 
     Returns:
         Title text (without '# ' prefix) or fallback string
@@ -390,24 +400,106 @@ def extract_title_from_markdown(markdown: str) -> str:
         Given first line '# Cleaning Chemistry'
         Returns 'Cleaning Chemistry'
     """
-    fallback = "Untitled Document"
-    if not markdown:
-        return fallback
+    # Frontmatter title always wins
+    if frontmatter.get("title"):
+        return frontmatter["title"]
+    elif strict:
+        raise ValueError("--strict: 'title' field required in frontmatter")
 
+    if mode == 2:
+        # Github mode: use first h1
+        first_h1 = extract_first_h1(markdown_content)
+        if first_h1:
+            return first_h1
+        logger.warning(f"⚠️  Warning: No 'title' in frontmatter and no h1 found.")
+    else:
+        # Wiki mode: use filename (without extension)
+        return file_path.stem
+
+    # Fallback title
+    return "Untitled Document"
+
+
+def extract_description(frontmatter: Dict, strict: bool) -> str:
+    """
+    Extract document description from YAML frontmatter.
+
+    Args:
+        markdown: string content of an .md file
+        strict: If True, require 'description' frontmatter.
+
+    Returns:
+        description string ("" if none in frontmatter)
+    """
+    # description key from YAML frontmatter
+    if frontmatter.get("description"):
+        return frontmatter["description"]
+
+    # no description -- error or warn based on strict preference
+    if strict:
+        raise ValueError("--strict: 'description' field required in frontmatter")
+    else:
+        logger.warning(f"ℹ️  Info: No 'description' in frontmatter.")
+        logger.warning(
+            f"    <meta name='description'> will be empty. SEO may be affected."
+        )
+
+    return ""
+
+
+def extract_first_h1(markdown: str) -> str:
+    """
+    Extract the first h1 from markdown file.
+
+    Args:
+        markdown: string content of an .md file
+
+    Returns:
+        Title text (without '# ' prefix) or None
+
+    Example:
+        Given first line '# Cleaning Chemistry'
+        Returns 'Cleaning Chemistry'
+    """
     for line in markdown.splitlines():
         line = line.strip()
         if line.startswith("# ") and not line.startswith("## "):
             return line[2:].strip()
 
-    return fallback
 
-
-def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
+def count_h1_headings(markdown: str) -> int:
     """
-    Render TOC entries as nested HTML list.
+    Count number of h1 headings in markdown file.
+
+    Args:
+        markdown: string content of an .md file
+
+    Returns:
+        int number of h1 headings
+    """
+    num_headings = 0
+    for line in markdown.splitlines():
+        line = line.strip()
+        if line.startswith("# ") and not line.startswith("## "):
+            num_headings += 1
+    return num_headings
+
+
+# ============================================================================
+# DOCUMENT GENERATION
+# ============================================================================
+
+
+def render_toc(toc_entries: List[Dict], mode: int, current_depth: int = 1) -> str:
+    """
+    Render TOC entries as nested HTML list based on document mode.
 
     Args:
         toc_entries: List of dicts with 'level', 'text', 'id' keys
+        mode: int indicating how TOC should be handled.
+            Options: 1: (github style), 2: (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top
+            - Wiki mode: All h1s as normal headings. Back to top link before all
         current_depth: Starting depth (default 1, for h1)
 
     Returns:
@@ -423,16 +515,28 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
 
     html = '<ul class="toc-list">\n'
 
+    # counter to offset which css styling class to use for heading entries
+    # (wiki docs should use toc-level-h2 for h1, toc-level-h3 for h2, etc.)
+    offset = 0
+
+    # wiki mode: create anchor to top of document
+    if mode == 1:
+        html += f'  <li><a href="#top" class="toc-level-h1">↑ Start</a></li>\n'
+        offset = 1
+
+    # create <li> for each heading
     for entry in entries:
         level = entry["level"]
         text = entry["text"]
         anchor_id = entry["id"]
+        level_class = f"toc-level-h{level + offset}"
 
-        if level == 1:
+        if level == 1 and mode == 2 and entry == entries[0]:
+            # First h1 in document mode: up-arrow
             # Back to top link (uses #top anchor from <html id="top">)
             html += f'  <li><a href="#top" class="toc-level-h1">↑ {text}</a></li>\n'
         else:
-            level_class = f"toc-level-h{level}"
+            # Wiki mode or non-first h1 in document mode (shouldn't happen)
             html += (
                 f'  <li><a href="#{anchor_id}" class="{level_class}">{text}</a></li>\n'
             )
@@ -441,12 +545,16 @@ def render_toc(toc_entries: List[Dict], current_depth: int = 1) -> str:
     return html
 
 
-def convert_markdown_to_html(md_content: str) -> Tuple[str, str]:
+def convert_markdown_to_html(md_content: str, mode: int) -> Tuple[str, str]:
     """
     Convert Markdown file to HTML using python-markdown.
 
     Args:
         md_content: extracted markdown content from .md file (should NOT include YAML frontmatter)
+        mode: int indicating how TOC should be handled.
+            Options: 1: (github style), 2: (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top
+            - Wiki mode: All h1s as normal headings. Back to top link before all
 
     Returns:
         Tuple: (
@@ -466,7 +574,7 @@ def convert_markdown_to_html(md_content: str) -> Tuple[str, str]:
     soup_with_ids = BeautifulSoup(html_with_ids, "html.parser")
 
     # Generate TOC HTML from entries
-    toc_html = render_toc(toc_entries)
+    toc_html = render_toc(toc_entries, mode)
 
     return str(soup_with_ids), toc_html
 
@@ -700,6 +808,7 @@ def process_single_file(
     final_assets_dir: Path,
     force: bool,
     strict: bool,
+    mode: int,
 ) -> Path:
     """
     Process a single markdown file and return the output path.
@@ -719,6 +828,10 @@ def process_single_file(
             FileExistsError when output already exists.
         strict: If True, require 'title' and 'description' in frontmatter.
             If False, use fallbacks (first h1 for title, empty for description).
+        mode: int indicating how TOC should be handled.
+            Options: 1: (github style), 2: (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top
+            - Wiki mode: All h1s as normal headings. Back to top link before all
 
     Returns:
         Path to the generated HTML file (same as output_path).
@@ -744,17 +857,24 @@ def process_single_file(
     # Read and parse
     raw_content = read_markdown_file(input_path)
     metadata, markdown_content = parse_frontmatter(raw_content)
-    # get document title and description from YAML frontmatter
-    # or fallback value (if not present in frontmatter)
-    title, description = extract_data_from_frontmatter(
-        metadata, markdown_content, strict
-    )
+
+    # Determine "document type" for TOC styling:
+    # - wiki style (multiple h1s) or github style (one h1 with title)
+    # - Priority: 1. CLI --mode arg, 2. YAML frontmatter 'type' key, 3. auto-detect based on h1 count
+    document_mode = resolve_document_mode(metadata, mode, markdown_content)
+
+    # Extract title (get from YAML frontmatter, markdown if document mode, or filename if wiki mode)
+    title = extract_title(metadata, markdown_content, document_mode, input_path, strict)
+
+    # Extract description for description HTML metadata
+    description = extract_description(metadata, strict)
+
     # merge determined title and description into metadata for HTML formatting
     metadata["title"] = title
     metadata["description"] = description
 
     # Convert markdown to HTML
-    html_content, toc = convert_markdown_to_html(markdown_content)
+    html_content, toc = convert_markdown_to_html(markdown_content, document_mode)
 
     # Calculate asset path prefix
     asset_path_prefix = get_asset_path_prefix(output_path, final_assets_dir)
@@ -781,6 +901,7 @@ def process_all_files(
     final_assets_dir: Path,
     force: bool,
     strict: bool,
+    mode: int,
 ) -> List[Path]:
     """
     Process all markdown files from a mapping dictionary.
@@ -801,6 +922,10 @@ def process_all_files(
             FileExistsError when output already exists.
         strict: If True, abort on first error and re-raise the exception.
             If False, log errors and continue processing remaining files.
+        mode: int indicating how TOC should be handled.
+            Options: 1: (github style), 2: (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top
+            - Wiki mode: All h1s as normal headings. Back to top link before all
 
     Returns:
         List of successfully generated HTML file paths.
@@ -836,6 +961,7 @@ def process_all_files(
                 final_assets_dir,
                 force,
                 strict,
+                mode,
             )
             output_paths.append(output_file)
         except Exception as e:
@@ -1195,6 +1321,13 @@ def main():
         help="Custom filename for index page (default: index.html)",
     )
     parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["auto", "github", "wiki"],
+        default="auto",
+        help="Document mode: auto (detect), github (single h1 -- doc title), wiki (multiple h1s)",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress all non-error output (useful for scripting)",
@@ -1211,6 +1344,13 @@ def main():
     output_path = args.output.resolve()
     template_path = args.template.resolve()
     assets_path = args.assets.resolve()
+
+    # standardize document mode
+    if not args.mode in MODE_MAPPING:
+        raise ValueError(
+            f"Bug: --mode passed argparse validation, but not valid via MODE_MAPPING:\n\tValid: {', '.join(list(MODE_MAPPING.keys()))}\n\tGiven: {args.mode}"
+        )
+    document_mode = MODE_MAPPING[args.mode]
 
     # delete output dir if exists and --clean provided
     if args.clean:
@@ -1239,6 +1379,7 @@ def main():
             final_assets_dir,
             args.force,
             args.strict,
+            document_mode,
         )
 
         # Generate index page (batch mode only, not --no-index)
