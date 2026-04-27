@@ -449,9 +449,8 @@ def extract_description(frontmatter: Dict, strict: bool) -> str:
     if strict:
         raise ValueError("--strict: 'description' field required in frontmatter")
     else:
-        logger.warning(f"ℹ️  Info: No 'description' in frontmatter.")
         logger.warning(
-            f"    <meta name='description'> will be empty. SEO may be affected."
+            f"ℹ️  Info: No 'description' in frontmatter. <meta name='description'> will be empty. SEO may be affected."
         )
 
     return ""
