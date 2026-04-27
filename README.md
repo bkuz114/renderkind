@@ -266,7 +266,7 @@ Document content...
 |-------|-----------|---------|---------------------|
 | `title` | No (but recommended) | Document title for `<title>` tag and header | First `# h1` in markdown (with warning) |
 | `description` | No | Meta description for SEO | Empty string (with info message) |
-| `type` | Document mode (`document` or `wiki`) | Auto-detection (single h1 → document, multiple h1s → wiki) |
+| `type` | Document mode (`github` or `wiki`) | Auto-detection (single h1 → github, multiple h1s → wiki) |
 
 ### Extending frontmatter
 
