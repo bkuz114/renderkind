@@ -252,7 +252,7 @@ def resolve_document_mode(
         frontmatter: dictionary of YAML key/values
         cli_mode: integer representation of user supplied --mode using MODE_MAPPING
             (i.e. --mode "auto" : 0, --mode "wiki": 1, --mode "github"  : 2)
-        markdown: string content of an .md file
+        markdown_content: string content of an .md file
 
     Returns:
         int representating determined mode:
@@ -386,11 +386,12 @@ def extract_title(
 
     Args:
         frontmatter: dictionary of the key/value pairs extracted from YAML frontmatter.
-        markdown: string content of an .md file
+        markdown_content: string content of an .md file
         mode: int indicating how TOC should be handled.
             Options: 1: (github style), 2: (wiki style)
             - Github mode: First h1 gets up-arrow anchored to #top
             - Wiki mode: All h1s as normal headings. Back to top link before all
+        file_path: Path to markdown file
         strict: If True, require 'title' frontmatter.
 
     Returns:
@@ -435,7 +436,7 @@ def extract_description(frontmatter: Dict, strict: bool) -> str:
     Extract document description from YAML frontmatter.
 
     Args:
-        markdown: string content of an .md file
+        frontmatter: dictionary of the key/value pairs extracted from YAML frontmatter.
         strict: If True, require 'description' frontmatter.
 
     Returns:
