@@ -280,10 +280,10 @@ def resolve_document_mode(
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """
-    Parse YAML frontmatter from markdown content.
+    Parse YAML frontmatter from markdown content and return both.
 
     Args:
-        content: Full markdown string
+        content: string content of an .md file (including YAML frontmatter)
 
     Returns:
         (metadata_dict, remaining_markdown_string)
@@ -379,23 +379,21 @@ def extract_title(
     frontmatter: Dict, markdown_content: str, mode: int, file_path: Path, strict: bool
 ) -> str:
     """
-    Extract document title based on mode.
+    Extract document title basd on mode.
 
-    1 (Wiki mode): frontmatter 'title' → filename → fallback
-    2 (Github mode): YAML frontmatter 'title' → first h1 → fallback
+    Approach:
+    For type 1 document (Wiki-style): YAML frontmatter 'title' → filename
+    For type 2 document (Github-style): YAML frontmatter 'title' → first h1 → fallback
 
     Args:
         frontmatter: dictionary of the key/value pairs extracted from YAML frontmatter.
         markdown_content: string content of an .md file
-        mode: int indicating how TOC should be handled.
-            Options: 1: (github style), 2: (wiki style)
-            - Github mode: First h1 gets up-arrow anchored to #top
-            - Wiki mode: All h1s as normal headings. Back to top link before all
+        mode: int indicating document type. Options: 1 (github style), 2 (wiki style)
         file_path: Path to markdown file
         strict: If True, require 'title' frontmatter.
 
     Returns:
-        Title text (without '# ' prefix) or fallback string
+        Extracted title text (without '# ' prefix) or fallback string
 
     Example:
         Given first line '# Cleaning Chemistry'
@@ -506,9 +504,8 @@ def render_toc(toc_entries: List[Dict], mode: int, current_depth: int = 1) -> st
 
     Args:
         toc_entries: List of dicts with 'level', 'text', 'id' keys
-        mode: int indicating how TOC should be handled.
-            Options: 1: (github style), 2: (wiki style)
-            - Github mode: First h1 gets up-arrow anchored to #top
+        mode: int indicating document type. Options: 1 (github style), 2 (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top in TOC
             - Wiki mode: All h1s as normal headings. Back to top link before all
         current_depth: Starting depth (default 1, for h1)
 
@@ -561,10 +558,9 @@ def convert_markdown_to_html(md_content: str, mode: int) -> Tuple[str, str]:
 
     Args:
         md_content: extracted markdown content from .md file (should NOT include YAML frontmatter)
-        mode: int indicating how TOC should be handled.
-            Options: 1: (github style), 2: (wiki style)
-            - Github mode: First h1 gets up-arrow anchored to #top
-            - Wiki mode: All h1s as normal headings. Back to top link before all
+        mode: int indicating document type. Options: 1 (github style), 2 (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top in TOC
+            - Wiki mode: All h1s as normal headings in TOC.
 
     Returns:
         Tuple: (
@@ -838,10 +834,11 @@ def process_single_file(
             FileExistsError when output already exists.
         strict: If True, require 'title' and 'description' in frontmatter.
             If False, use fallbacks (first h1 for title, empty for description).
-        mode: int indicating how TOC should be handled.
-            Options: 1: (github style), 2: (wiki style)
-            - Github mode: First h1 gets up-arrow anchored to #top
-            - Wiki mode: All h1s as normal headings. Back to top link before all
+        mode: int indicating document type. Options: 1 (github style), 2 (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top in TOC;
+              doc title extracted from first h1 if not in frontmatter.
+            - Wiki mode: All h1s as normal headings in TOC; doc title
+              based on filename if not in frontmatter.
 
     Returns:
         Path to the generated HTML file (same as output_path).
@@ -932,10 +929,11 @@ def process_all_files(
             FileExistsError when output already exists.
         strict: If True, abort on first error and re-raise the exception.
             If False, log errors and continue processing remaining files.
-        mode: int indicating how TOC should be handled.
-            Options: 1: (github style), 2: (wiki style)
-            - Github mode: First h1 gets up-arrow anchored to #top
-            - Wiki mode: All h1s as normal headings. Back to top link before all
+        mode: int indicating document type. Options: 1 (github style), 2 (wiki style)
+            - Github mode: First h1 gets up-arrow anchored to #top in TOC;
+              doc title extracted from first h1 if not in frontmatter.
+            - Wiki mode: All h1s as normal headings in TOC; doc title
+              based on filename if not in frontmatter.
 
     Returns:
         List of successfully generated HTML file paths.
