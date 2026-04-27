@@ -33,8 +33,8 @@ DIST_DIR="${BUILD_DIR}/dist"
 # wheel file details
 WHEEL_NAME="${PROJECT}-${VERSION}-py3-none-any.whl"
 WHEEL_FILE="${DIST_DIR}/${WHEEL_NAME}"
-# test md file
-TEST_MARKDOWN="${REPO_ROOT}/examples/example.md"
+# test md files
+TEST_FILES="${REPO_ROOT}/examples"
 
 # virtual envs to use
 dev_venv="dev_env"
@@ -280,15 +280,14 @@ else
     exit 1
 fi
 
-md_filename=$(basename "$TEST_MARKDOWN")
+examples_dirname=$(basename "$TEST_FILES")
 echo ""
 echo "##########################################################"
-echo "## 9. Copy example markdown ${md_filename} into testing dir"
+echo "## 9. Copy example markdown files into testing dir"
 echo "##########################################################"
 echo ""
-# copy example markdown into testing dir
-check_file "${TEST_MARKDOWN}"
-cp "${TEST_MARKDOWN}" "${TEMP_DIR}/${md_filename}"
+# copy example files into testing dir
+cp -r "${TEST_FILES}" "${TEMP_DIR}/${examples_dirname}"
 
 # After all testing is done, output the activation command
 echo ""
@@ -299,7 +298,7 @@ echo ""
 echo "📁 Test dir:  ${TEMP_DIR}"
 echo ""
 echo "🔧 Activate:  cd ${TEMP_DIR} && source ${test_venv}/Scripts/activate"
-echo "🏃 Run:       ${PROJECT} ${md_filename}"
+echo "🏃 Run:       ${PROJECT} ${examples_dirname}"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
