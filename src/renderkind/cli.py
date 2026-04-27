@@ -400,6 +400,10 @@ def extract_title(
         Given first line '# Cleaning Chemistry'
         Returns 'Cleaning Chemistry'
     """
+
+    fallback = "Untitled Document"
+    filename = file_path.stem
+
     # Frontmatter title always wins
     if frontmatter.get("title"):
         return frontmatter["title"]
@@ -411,13 +415,15 @@ def extract_title(
         first_h1 = extract_first_h1(markdown_content)
         if first_h1:
             return first_h1
-        logger.warning(f"⚠️  Warning: No 'title' in frontmatter and no h1 found.")
+        logger.warning(
+            f"⚠️  Warning: No 'title' in {filename} frontmatter and no h1 found. Document title falls back to: {fallback}"
+        )
     else:
         # Wiki mode: use filename (without extension)
-        return file_path.stem
+        return filename
 
     # Fallback title
-    return "Untitled Document"
+    return fallback
 
 
 def extract_description(frontmatter: Dict, strict: bool) -> str:
