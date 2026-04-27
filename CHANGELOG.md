@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prints current renderkind version and quits.
   - Commit 51d0e7b 
 
+- **Favicon for generated HTML files**
+  - Adds a favicon to generated HTML files to avoid browser default
+  - Commit ff29a1d
+
 ### Changed
 
 - `template_html()` now accepts a `frontmatter: Dict[str, str]` parameter instead of individual `title` and `description` arguments
