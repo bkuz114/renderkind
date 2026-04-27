@@ -418,9 +418,13 @@ def extract_title(
         logger.warning(
             f"⚠️  Warning: No 'title' in {filename} frontmatter and no h1 found. Document title falls back to: {fallback}"
         )
-    else:
+    elif mode == 1:
         # Wiki mode: use filename (without extension)
         return filename
+    else:
+        raise ValueError(
+            f"Invalid integer document type when trying to extract title: {str(mode)}. Valid values are 1 (wiki style) or 2 (github style)."
+        )
 
     # Fallback title
     return fallback
