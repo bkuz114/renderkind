@@ -16,6 +16,9 @@ pip install renderkind
 # Convert a markdown file
 renderkind input.md
 
+# Batch convert all markdown files in a directory
+renderkind files/
+
 # Output to a specific directory
 renderkind input.md --output dist/
 
