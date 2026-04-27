@@ -1258,7 +1258,7 @@ def main():
             __version__ = (
                 "unknown"  # Fallback when running outside an installed package
             )
-        print(f"renderkind {__version__}")
+        print(f"{__version__}")
         return
 
     # help string to add to path arguments
