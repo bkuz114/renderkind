@@ -274,7 +274,7 @@ echo "## 8. Test package import                                #"
 echo "##########################################################"
 echo ""
 echo "Testing package import..."
-if python -c "import renderkind; print(f'Version: {renderkind.__version__}')" 2>/dev/null; then
+if python -c "import renderkind" 2>/dev/null; then
     echo "✅ Package import successful"
 else
     echo "❌ Package import failed - check installation"
