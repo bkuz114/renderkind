@@ -1261,9 +1261,7 @@ def main():
     #    (the version in pyproject.toml) without duplication or sync issues
     if "--version" in sys.argv or "-v" in sys.argv:
         try:
-            from importlib.metadata import version as get_version
-
-            __version__ = get_version("renderkind")
+            from renderkind import __version__
         except ImportError:
             __version__ = (
                 "unknown"  # Fallback when running outside an installed package
