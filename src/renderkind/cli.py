@@ -100,6 +100,9 @@ if __name__ == "__main__":
 # vendored template_utils package
 from renderkind.vendor.template_utils import render_template
 
+# version string to use for --version option (comes from __init__.py)
+from renderkind import __version__
+
 # set up template and assets defaults within the pip project
 import renderkind
 
@@ -1254,21 +1257,6 @@ def _render_tree(tree: dict, base_path: Path = Path("")) -> str:
 
 def main():
 
-    # Handle --version before argparse because:
-    # 1. --version should exit without requiring the 'input' argument
-    # 2. argparse's required argument validation would otherwise reject this call
-    # 3. Reading version from installed package metadata ensures a single source of truth
-    #    (the version in pyproject.toml) without duplication or sync issues
-    if "--version" in sys.argv or "-v" in sys.argv:
-        try:
-            from renderkind import __version__
-        except ImportError:
-            __version__ = (
-                "unknown"  # Fallback when running outside an installed package
-            )
-        print(f"{__version__}")
-        return
-
     # help string to add to path arguments
     path_help = (
         "Relative paths are resolved relative to the current working directory "
@@ -1348,7 +1336,7 @@ def main():
         action="store_true",
         help="Suppress all non-error output (useful for scripting)",
     )
-
+    parser.add_argument("--version", "-v", action="version", version=f"{__version__}")
     args = parser.parse_args()
 
     # Setup logging before any script logic
