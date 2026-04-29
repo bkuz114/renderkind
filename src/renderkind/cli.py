@@ -87,6 +87,16 @@ import markdown
 from bs4 import BeautifulSoup
 import logging
 
+# Allow direct execution from source during development (e.g., `python cli.py`)
+# by adding the `src/` directory to Python's import path. This block only runs
+# when the script is executed directly, not when imported as a module or run
+# from a pip installation.
+if __name__ == "__main__":
+    # get src dir to add to python path
+    src_dir = Path(__file__).resolve().parent.parent  # resolve() to handle symlinks
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+
 # vendored template_utils package
 from renderkind.vendor.template_utils import render_template
 
