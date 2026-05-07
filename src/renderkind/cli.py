@@ -706,13 +706,16 @@ def copy_assets_to_output(
 
     # Handle existing destination
     if assets_dest_dir.exists():
-        if force:
-            shutil.rmtree(assets_dest_dir)  # Remove entire existing directory
-        else:
-            raise FileExistsError(
-                f"Destination already exists: {assets_dest_dir}\n"
-                f"Use force=True to overwrite."
-            )
+        try:
+            if force:
+                shutil.rmtree(assets_dest_dir)
+            else:
+                raise FileExistsError(
+                    f"Destination already exists: {assets_dest_dir}\n"
+                    f"Use force=True to overwrite."
+                )
+        except Exception as e:
+            raise RuntimeError(f"Failed to remove existing assets dir: {e}")
 
     # Copy the directory
     try:
