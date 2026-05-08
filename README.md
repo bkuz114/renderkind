@@ -67,7 +67,7 @@ pip install -e .
 ## Usage
 
 ```bash
-renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--mode] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
+renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--mode] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME] [--nuclear]
 ```
 
 ### Basic Usage
@@ -167,6 +167,12 @@ Clean output directory before processing (requires `--force`):
 
 ```bash
 renderkind docs/ --clean --force
+```
+
+Aggressive overwrite (use at your own risk) — strips read-only permissions to resolve `[WinError 5]` errors:
+
+```bash
+renderkind docs/ --force --nuclear
 ```
 
 ### Output Verbosity
@@ -490,6 +496,44 @@ python -m pytest tests/
 2. Create a feature branch
 3. Make changes with clear commit messages
 4. Submit a pull request
+
+## Troubleshooting
+
+### Windows: `[WinError 5] Access is denied` when using `--force`
+
+**Symptoms:**
+- The command fails with `Access is denied` when trying to overwrite existing output
+- Manually deleting the directory via Explorer works fine
+- The error is intermittent (sometimes works, sometimes fails)
+
+**Cause:**
+A Windows filesystem quirk where directories can become locked or have read-only attributes that block `shutil.rmtree()`. This can happen even when Explorer shows no open handles and the directory is deletable manually.
+
+The exact cause remains unclear, but observed behavior suggests the issue may involve:
+- Read-only attributes on the directory or its contents (which `shutil.rmtree()` does not handle gracefully)
+- Antivirus real-time scanning temporarily locking new or modified directories
+- Windows Search Indexer holding references to recently written files
+- File system filter drivers (including those installed by cloud storage providers like Google Drive or OneDrive)
+
+**Solutions:**
+
+1. **Manual deletion (simplest workaround):**
+   Delete the output directory via Explorer or `rmdir /s /q` and re-run the command.
+
+2. **`--nuclear` flag (automated workaround):**
+   ```bash
+   renderkind docs/ --force --nuclear
+   ```
+   This strips read-only permissions before deletion. Use at your own risk — it modifies filesystem permissions.
+
+**Why not always use `--nuclear`?**
+The flag modifies filesystem permissions (removes read-only attributes) without restoring them. While harmless for directories being deleted, this behavior is intentionally opt-in rather than default.
+
+**Still having issues?**
+If `--nuclear` does not resolve the error, please open an issue with:
+- Windows version
+- Python version
+- Whether the output directory is in a cloud-synced folder (OneDrive, Google Drive, etc.)
 
 ## Version History
 
