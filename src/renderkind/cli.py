@@ -9,7 +9,7 @@ responsive design.
 Usage:
     renderkind INPUT [--output DIR] [--template FILE] [--force] [--strict]
                [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME]
-               [--mode MODE]
+               [--mode MODE] [--nuclear]
 
 Examples:
     # Single file mode (outputs to dist/index.html)
@@ -77,6 +77,7 @@ For more information, see README.md and CHANGELOG.md.
 import os
 import sys
 import argparse
+import stat
 import re
 import json
 import shutil
@@ -179,6 +180,48 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+
+def make_path_writable(function, path):
+    """Make a path writable and retry the function."""
+    os.chmod(path, stat.S_IWRITE)
+    function(path)
+
+
+def remove_path(path: Path, force: bool, nuclear: bool) -> None:
+    """Remove a path, optionally handling Windows read-only attributes.
+
+    Args:
+        path: The path to remove.
+        force: If False, raises FileExistsError when the path exists.
+               If True, attempts normal deletion via shutil.rmtree.
+        nuclear: If True, uses aggressive deletion that strips read-only
+                 permissions before retrying (Windows only). Implies force.
+
+    Raises:
+        FileExistsError: If force and nuclear are both False and path exists.
+
+    Notes:
+        The nuclear option is a Windows-specific workaround for `[WinError 5] Access is denied`
+        errors that occur even when the path is deletable via Explorer. It applies
+        `os.chmod(path, stat.S_IWRITE)` to any item that fails deletion and retries.
+
+        Use nuclear only as a last resort when standard --force fails with permission errors.
+    """
+    if not path.exists():
+        return
+
+    try:
+        if nuclear:
+            shutil.rmtree(path, onerror=make_path_writable)
+        elif force:
+            shutil.rmtree(path)
+        else:
+            raise FileExistsError(
+                f"Path already exists: {path}\nUse --force to overwrite."
+            )
+    except Exception as e:
+        raise RuntimeError(f"Failed to remove path. Error: {e}")
 
 
 def is_in_hidden_directory(path: Path, root_dir: Path) -> bool:
@@ -660,7 +703,10 @@ def template_html(
 
 
 def copy_assets_to_output(
-    assets_path: Path, assets_dest_dir: Path, force: bool = False
+    assets_path: Path,
+    assets_dest_dir: Path,
+    force: bool = False,
+    nuclear: bool = False,
 ) -> Path:
     """
     Copy the assets directory to the output file's parent directory.
@@ -675,6 +721,9 @@ def copy_assets_to_output(
         assets_dest_dir: Path to the copy assets to.
         force: If True, overwrite existing assets directory; if False, raise
                error if destination already exists.
+        nuclear: If True, uses aggressive deletion that strips read-only
+                 permissions before retrying (Windows only). Implies force.
+                 This is used when force alone fails (see 62b1330 and related)
 
     Returns: None
 
@@ -708,7 +757,7 @@ def copy_assets_to_output(
     if assets_dest_dir.exists():
         try:
             if force:
-                shutil.rmtree(assets_dest_dir)
+                remove_path(assets_dest_dir, force, nuclear)
             else:
                 raise FileExistsError(
                     f"Destination already exists: {assets_dest_dir}\n"
@@ -925,6 +974,7 @@ def process_all_files(
     force: bool,
     strict: bool,
     mode: int,
+    nuclear: bool,
 ) -> List[Path]:
     """
     Process all markdown files from a mapping dictionary.
@@ -950,6 +1000,9 @@ def process_all_files(
               doc title extracted from first h1 if not in frontmatter.
             - Wiki mode: All h1s as normal headings in TOC; doc title
               based on filename if not in frontmatter.
+        nuclear: If True, uses aggressive deletion that strips read-only
+                 permissions before retrying (Windows only). Implies force.
+                 This is used when force alone fails (see 62b1330 and related)
 
     Returns:
         List of successfully generated HTML file paths.
@@ -995,7 +1048,7 @@ def process_all_files(
                 raise  # Fail fast in strict mode
 
     # Copy assets once after all files processed (or before, doesn't matter)
-    copy_assets_to_output(assets_path, final_assets_dir, force)
+    copy_assets_to_output(assets_path, final_assets_dir, force, nuclear)
 
     logger.info(f"\n✅ Processed {len(output_paths)} of {len(md_files_mapping)} files")
     if failed_count > 0 and not strict:
@@ -1302,6 +1355,12 @@ def main():
         help="Overwrite existing output file if it exists",
     )
     parser.add_argument(
+        "--nuclear",
+        action="store_true",
+        help="USE AT YOUR OWN RISK. Force delete output directory by removing "
+        "read-only permissions. Only use if --force fails with 'Access denied'.",
+    )
+    parser.add_argument(
         "--clean",
         action="store_true",
         help="Delete output directory before processing (requires --force)",
@@ -1361,11 +1420,11 @@ def main():
 
     # delete output dir if exists and --clean provided
     if args.clean:
-        if not args.force:
-            logger.error("❌ Error: --clean requires --force")
+        if not args.force and not args.nuclear:
+            logger.error("❌ Error: --clean requires --force or --nuclear")
             sys.exit(1)
         if output_path.exists():
-            shutil.rmtree(output_path)
+            remove_path(output_path, args.force, args.nuclear)
             logger.info(f"🧹 Cleaned output directory: {output_path}")
 
     try:
@@ -1387,6 +1446,7 @@ def main():
             args.force,
             args.strict,
             document_mode,
+            args.nuclear,
         )
 
         # Generate index page (batch mode only, not --no-index)
