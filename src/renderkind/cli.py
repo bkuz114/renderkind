@@ -87,6 +87,7 @@ import yaml
 import markdown
 from bs4 import BeautifulSoup
 import logging
+import webbrowser
 
 # Allow direct execution from source during development (e.g., `python cli.py`)
 # by adding the `src/` directory to Python's import path. This block only runs
@@ -1394,6 +1395,11 @@ def main():
         help="Document mode: auto (detect), github (single h1 -- doc title), wiki (multiple h1s)",
     )
     parser.add_argument(
+        "--browser",
+        action="store_true",
+        help="Open generated HTML file in user's default browser upon completion (or --index.html if created)",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress all non-error output (useful for scripting)",
@@ -1438,7 +1444,7 @@ def main():
         final_assets_dir = output_path / "assets"
 
         # Process all the files
-        process_all_files(
+        files = process_all_files(
             md_files_mapping,
             template_path,
             assets_path,
@@ -1449,10 +1455,14 @@ def main():
             args.nuclear,
         )
 
+        if not files:
+            raise RuntimeError(f"No files appear to have been created")
+
         # Generate index page (batch mode only, not --no-index)
+        index_path = None
         if not args.no_index and input_path.is_dir():
             index_path = output_path / args.index_name
-            generate_index_page(
+            index_path = generate_index_page(
                 output_path,
                 md_files_mapping,
                 index_path,
@@ -1460,6 +1470,17 @@ def main():
                 final_assets_dir,
                 args.force,
             )
+
+        # open in browser
+        if args.browser:
+            if index_path:
+                # default to opening index file if created
+                webbrowser.open(index_path)
+            elif files:
+                # only opens first first file
+                webbrowser.open(files[0])
+            if not files:
+                raise RuntimeError(f"No files appear to have been created")
 
     except FileNotFoundError as e:
         logger.error(f"\n❌ Error:\n{e}\n")
