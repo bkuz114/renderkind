@@ -67,7 +67,7 @@ pip install -e .
 ## Usage
 
 ```bash
-renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--mode] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME] [--nuclear]
+renderkind INPUT [--output OUTPUT_DIR] [--template TEMPLATE_FILE] [--force] [--strict] [--mode] [--quiet] [--clean] [--no-recursive] [--no-index] [--index-name NAME] [--browser] [--nuclear]
 ```
 
 ### Basic Usage
@@ -153,6 +153,27 @@ Process only top-level files (no subdirectories):
 
 ```bash
 renderkind docs/ --no-recursive
+```
+
+### Automatic browser opening
+
+Open generated HTML file in browser
+
+
+```bash
+renderkind docs/intro.md --browser
+```
+
+Open index.html in browser in batch mode
+
+```bash
+renderkind docs/ --browser
+```
+
+Open just first generated file in the browser (batch mode when index generation is disabled)
+
+```bash
+renderkind docs/ --browser --no-index
 ```
 
 ### Overwrite Behavior
