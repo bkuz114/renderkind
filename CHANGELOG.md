@@ -5,10 +5,24 @@ All notable changes to `renderkind` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-05-07
+
+This is a minor release which mostly includes internal refactoring. User-facing upgrades:
+
+- Addresses a major Windows bug "(WinError 5) Acccess is denied" [#1](https://github.com/bkuz114/renderkind/issues/1)
+- `--browser` option to open generated HTML in the browser upon completion
 
 ### Added
-- (Placeholder for future changes)
+- **Windows `--nuclear` option** – Provides an aggressive deletion mode for users encountering persistent `[WinError 5] Access is denied` errors when using `--force`. When enabled, the tool strips read-only permissions from any file or directory that blocks deletion and retries. This is an opt-in, use-at-your-own-risk workaround for a Windows filesystem quirk that remains unidentified after extensive debugging. [#1](https://github.com/bkuz114/renderkind/issues/1), (62b1330, 88b0d5a)
+
+### Fixed
+- **Windows directory cleanup** – Improved error handling when removing existing build directories during `--force` and `--clean` operations. Failures are now caught and reported with clearer context.
+
+### Changed
+- Internal refactor: replaced direct `shutil.rmtree()` calls with `remove_path()` helper function to support the new `--nuclear` behavior.
+
+### Added
+- `--browser` option to automatically open in browser (6830de0) 
 
 ## [0.4.0] - 2026-04-26
 
@@ -321,3 +335,4 @@ No breaking changes. Users experiencing Windows path crashes should upgrade to v
 [0.3.0]: https://github.com/bkuz114/renderkind/releases/tag/v0.3.0
 [0.3.1]: https://github.com/bkuz114/renderkind/releases/tag/v0.3.1
 [0.4.0]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.0
+[0.4.1]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.1
