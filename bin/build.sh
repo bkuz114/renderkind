@@ -21,7 +21,7 @@ set -e
 PROJECT="renderkind"
 # project with - chars converted to _ (PyPI normalizes - to _ when building; also needed for import)
 PROJECT_NORMALIZED="${PROJECT//-/_}"
-VERSION="0.4.1"
+VERSION="0.4.2"
 
 # working directories
 

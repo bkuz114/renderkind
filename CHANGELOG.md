@@ -5,6 +5,14 @@ All notable changes to `renderkind` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-05-16
+
+### Fixed
+- Windows `--nuclear` deletion failing with `TypeError: make_path_writable() takes 2 positional arguments but 3 were given`
+  - The `onerror` handler for `shutil.rmtree()` now accepts the required `excinfo` parameter
+  - Fixes permission-stripping retry mechanism on Windows when standard `--force` fails with access denied errors
+  - See commit 88b0d5a
+
 ## [0.4.1] - 2026-05-07
 
 This is a minor release which mostly includes internal refactoring. User-facing upgrades:
@@ -336,3 +344,4 @@ No breaking changes. Users experiencing Windows path crashes should upgrade to v
 [0.3.1]: https://github.com/bkuz114/renderkind/releases/tag/v0.3.1
 [0.4.0]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.0
 [0.4.1]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.1
+[0.4.2]: https://github.com/bkuz114/renderkind/releases/tag/v0.4.2
