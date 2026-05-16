@@ -183,7 +183,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def make_path_writable(function, path):
+def make_path_writable(function, path, excinfo=None):
     """Make a path writable and retry the function."""
     os.chmod(path, stat.S_IWRITE)
     function(path)
